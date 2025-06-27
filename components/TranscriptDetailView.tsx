@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { Transcript, AnalysisContent, AnalysisType as AnalysisTypeEnum, GroundingMetadata } from '../types';
+import type { Transcript, AnalysisContent, AnalysisType as AnalysisTypeEnum, GroundingMetadata, SpeakerContextState } from '../types';
 import { AnalysisType } from '../types';
 import { performAnalysis } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -9,6 +9,7 @@ import { ANALYSIS_TYPE_CONFIG } from '../constants';
 
 interface TranscriptDetailViewProps {
   transcript: Transcript | null;
+  speakerContext: SpeakerContextState; // Added speakerContext prop
   // isLoading?: boolean; // Removed: Handled by App.tsx before passing transcript
   // error?: string;    // Removed: Handled by App.tsx
 }
@@ -32,7 +33,7 @@ const AnalysisButton: React.FC<{
 };
 
 
-export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ transcript }) => {
+export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ transcript, speakerContext }) => {
   const [analysisData, setAnalysisData] = useState<Partial<AnalysisContent>>({});
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState<Partial<Record<AnalysisTypeEnum, boolean>>>({});
   const [analysisErrors, setAnalysisErrors] = useState<Partial<Record<AnalysisTypeEnum, string | null>>>({});
@@ -47,7 +48,7 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
     setGroundingMetadata(prev => ({ ...prev, [type]: null }));
 
     try {
-      const result = await performAnalysis(transcript.content, type);
+      const result = await performAnalysis(transcript.content, type, speakerContext); // Pass speakerContext
       setAnalysisData(prev => ({ ...prev, [type]: result.data }));
       if (result.groundingMetadata) {
         setGroundingMetadata(prev => ({...prev, [type]: result.groundingMetadata}));
@@ -58,27 +59,31 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
     } finally {
       setIsLoadingAnalysis(prev => ({ ...prev, [type]: false }));
     }
-  }, [transcript]);
+  }, [transcript, speakerContext]); // Added speakerContext to dependencies
 
   // Effect to auto-fetch summary when a new transcript is selected
   useEffect(() => {
-    if (transcript && transcript.content && !analysisData[AnalysisType.SUMMARY] && !isLoadingAnalysis[AnalysisType.SUMMARY] && !analysisErrors[AnalysisType.SUMMARY]) {
-      // Check if summary for this specific transcript ID has been fetched or is loading to avoid re-fetch if user clicks away and back
-      // This simple check assumes analysisData, isLoadingAnalysis, analysisErrors are reset when transcript ID changes (which they are implicitly via key or parent logic)
-      // A more robust way if state wasn't reset would be to store/check against transcript.id
-      console.log(`Auto-fetching summary for transcript ID: ${transcript.id}`);
-      handleAnalysisRequest(AnalysisType.SUMMARY);
-    }
-     // Reset analysis states when transcript changes to ensure fresh analyses for new selections
-     // and to make the auto-summary logic work correctly if the user navigates back and forth.
-     if (transcript) { // Only reset if there's a new transcript
-        setAnalysisData({});
-        setIsLoadingAnalysis({});
-        setAnalysisErrors({});
-        setGroundingMetadata({});
-     }
+    // When transcript changes, reset all analysis data first
+    if (transcript) {
+      setAnalysisData({});
+      setIsLoadingAnalysis({});
+      setAnalysisErrors({});
+      setGroundingMetadata({});
 
-  }, [transcript, handleAnalysisRequest]); // transcript.id would be better if transcript object identity isn't stable
+      // Then, if conditions are met, auto-fetch summary
+      // We explicitly check against initial/empty states here because they've just been reset.
+      if (transcript.content) { // No need to check analysisData/isLoading/analysisError for summary as they are fresh
+        console.log(`Auto-fetching summary for transcript ID: ${transcript.id} with current context.`);
+        handleAnalysisRequest(AnalysisType.SUMMARY);
+      }
+    } else {
+      // If transcript becomes null (deselected), clear all analysis data
+      setAnalysisData({});
+      setIsLoadingAnalysis({});
+      setAnalysisErrors({});
+      setGroundingMetadata({});
+    }
+  }, [transcript, handleAnalysisRequest]); // handleAnalysisRequest will change if transcript or speakerContext changes
 
   // isLoadingTranscript and transcriptError checks are removed as App.tsx now handles this.
   // If transcript is null, the placeholder below is shown.

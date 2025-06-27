@@ -6,7 +6,9 @@ import { TranscriptDetailView } from './components/TranscriptDetailView';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { fetchTranscripts, FetchTranscriptsResult } from './services/limitlessApi';
-import type { Transcript } from './types';
+import type { Transcript, SpeakerContextState } from './types';
+import { ContextManager } from './components/ContextManager';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ActionableError {
   message: string;
@@ -20,8 +22,20 @@ const App: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false); // For "load more"
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [actionableError, setActionableError] = useState<ActionableError>({ message: '', type: 'generic' });
+  const [speakerContext, setSpeakerContext] = useState<SpeakerContextState>([
+    { id: uuidv4(), title: 'Family', profiles: [] },
+    { id: uuidv4(), title: 'Work Colleagues', profiles: [] },
+    { id: uuidv4(), title: 'Friends', profiles: [] },
+    { id: uuidv4(), title: 'Other Key People', profiles: [] },
+  ]);
 
   const TRANSCRIPTS_PAGE_LIMIT = 10;
+
+  const handleSpeakerContextChange = (newContextState: SpeakerContextState) => {
+    setSpeakerContext(newContextState);
+    // In the future, could also save to localStorage here
+    // console.log("Speaker context updated:", newContextState);
+  };
 
   const loadTranscripts = useCallback(async (cursor?: string) => {
     if (cursor) {
@@ -138,10 +152,11 @@ const App: React.FC = () => {
                     Refresh List
                 </button>
             )}
+            <ContextManager contextState={speakerContext} onContextChange={handleSpeakerContextChange} />
           </div>
         </div>
         <div className="md:w-2/3 lg:w-3/4 flex-grow">
-          <TranscriptDetailView transcript={selectedTranscript} />
+          <TranscriptDetailView transcript={selectedTranscript} speakerContext={speakerContext} />
         </div>
       </main>
       <Footer />
