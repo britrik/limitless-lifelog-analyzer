@@ -10,6 +10,7 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "resolveJsonModule": true, // Added for components.json
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
@@ -23,8 +24,12 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
+    /* Path Aliases */
+    "baseUrl": ".",
     "paths": {
-      "@/*" :  ["./*"]
+      "@/*": ["./src/*"]
     }
-  }
+  },
+  "include": ["src", "components.json"], // Added components.json
+  "references": [{ "path": "./tsconfig.node.json" }] // Added reference
 }

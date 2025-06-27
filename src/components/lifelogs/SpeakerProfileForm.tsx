@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { SpeakerProfile } from '../types';
+import type { SpeakerProfile } from '@/types'; // Updated
 
 interface SpeakerProfileFormProps {
   profile: SpeakerProfile;

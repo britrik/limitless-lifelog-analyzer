@@ -3,24 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <title>Limitless Lifelog Analyzer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  {/* Dark mode script removed, handled by ThemeProvider */}
   <style>
     /* Custom scrollbar for better aesthetics */
+    /* Consider moving this to a global CSS file if not component-specific */
     ::-webkit-scrollbar {
       width: 8px;
       height: 8px;
     }
     ::-webkit-scrollbar-track {
-      background: #f1f1f1;
+      background: #1e293b; /* Darker track for dark theme */
       border-radius: 10px;
     }
     ::-webkit-scrollbar-thumb {
-      background: #888;
+      background: #4b5563; /* Adjusted thumb color */
       border-radius: 10px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: #555;
+      background: #6b7280; /* Adjusted hover color */
     }
   </style>
 <script type="importmap">
@@ -33,10 +35,10 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-gray-100">
+{/* Body class will be managed by ThemeProvider and Tailwind CSS variables */}
+<body>
   <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

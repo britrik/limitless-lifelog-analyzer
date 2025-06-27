@@ -5,6 +5,10 @@ export interface Transcript {
   date: string; // ISO date string, e.g., "2023-10-26T10:00:00Z"
   content: string;
   summary?: string; // Short summary, could be pre-generated or from initial fetch
+  isStarred?: boolean;   // From original API, useful for quick marking
+  tags?: string[];       // User-defined tags
+  annotations?: Array<{ id: string; text: string; timestamp?: number; selection?: string }>; // User annotations, timestamp is for ordering/linking
+  isBookmarked?: boolean; // User bookmark status
 }
 
 export enum AnalysisType {

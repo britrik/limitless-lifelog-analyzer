@@ -1,4 +1,4 @@
-import type { Transcript } from '../types';
+import type { Transcript } from '@/types'; // Updated path using alias
 
 // Read the Limitless API key from environment variables (Vite injects this at build time)
 const LIMITLESS_API_KEY = import.meta.env.VITE_LIMITLESS_API_KEY;

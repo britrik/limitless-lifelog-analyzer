@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { SpeakerContextState, SpeakerContextCategory, SpeakerProfile } from '../types';
+import type { SpeakerContextState, SpeakerContextCategory, SpeakerProfile } from '@/types'; // Updated
 import { SpeakerProfileForm } from './SpeakerProfileForm';
 import { v4 as uuidv4 } from 'uuid'; // For generating unique IDs
 

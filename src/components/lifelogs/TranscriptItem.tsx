@@ -1,6 +1,6 @@
 
 import React from 'react';
-import type { Transcript } from '../types';
+import type { Transcript } from '@/types'; // Updated path using alias
 
 interface TranscriptItemProps {
   transcript: Transcript;

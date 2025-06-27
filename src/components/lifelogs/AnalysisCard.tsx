@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { AnalysisType, GroundingMetadata } from '../types';
-import { LoadingSpinner } from './LoadingSpinner';
-import { ErrorDisplay } from './ErrorDisplay';
-import { ANALYSIS_TYPE_CONFIG } from '../constants';
+import { AnalysisType, GroundingMetadata } from '@/types'; // Updated
+import { LoadingSpinner } from '@/components/common/LoadingSpinner'; // Updated
+import { ErrorDisplay } from '@/components/common/ErrorDisplay'; // Updated
+import { ANALYSIS_TYPE_CONFIG } from '@/constants'; // Updated
 
 interface AnalysisCardProps {
   analysisType: AnalysisType;

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { TranscriptItem } from './TranscriptItem';
-import type { Transcript } from '../types';
+import type { Transcript } from '@/types'; // Updated path using alias
 
 interface TranscriptListProps {
   transcripts: Transcript[];
