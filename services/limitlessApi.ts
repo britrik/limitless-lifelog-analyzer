@@ -76,19 +76,34 @@ const handleApiResponse = async (response: Response) => {
   return response.json();
 };
 
-export const fetchTranscripts = async (limit: number = 10): Promise<Transcript[]> => {
+export interface FetchTranscriptsResult {
+  transcripts: Transcript[];
+  nextCursor?: string;
+}
+
+export const fetchTranscripts = async (limit: number = 10, cursor?: string): Promise<FetchTranscriptsResult> => {
   if (!LIMITLESS_API_KEY) {
     const errorMessage = "Limitless API Key is not configured. Please set VITE_LIMITLESS_API_KEY in your .env.local file.";
     console.error(errorMessage); // Keep console error for clarity
     throw new Error(errorMessage);
   }
   
-  console.log('Limitless API: Fetching lifelogs using key ending with ...' + LIMITLESS_API_KEY.slice(-4));
+  let apiMessage = 'Limitless API: Fetching lifelogs';
+  if (cursor) {
+    apiMessage += ` with cursor ${cursor}`;
+  }
+  apiMessage += ` using key ending with ...${LIMITLESS_API_KEY.slice(-4)}`;
+  console.log(apiMessage);
+
   const params = new URLSearchParams({
     limit: String(limit),
     direction: 'desc', 
     includeMarkdown: 'true', 
   });
+
+  if (cursor) {
+    params.append('cursor', cursor);
+  }
 
   try {
     const response = await fetch(`${LIMITLESS_API_BASE_URL}/lifelogs?${params.toString()}`, {
@@ -107,13 +122,19 @@ export const fetchTranscripts = async (limit: number = 10): Promise<Transcript[]
       throw new Error('Failed to parse lifelogs: Unexpected API response structure.');
     }
 
-    return rawLifelogs.map((lifelog: Lifelog): Transcript => ({
+    const transcripts = rawLifelogs.map((lifelog: Lifelog): Transcript => ({
       id: lifelog.id,
       title: lifelog.title || 'Untitled Lifelog', 
       date: lifelog.startTime, 
       content: lifelog.markdown, 
-      summary: generateSummarySnippet(lifelog.markdown), 
+      summary: generateSummarySnippet(lifelog.markdown),
+      isStarred: lifelog.isStarred,
     }));
+
+    return {
+      transcripts,
+      nextCursor: apiResponse.meta?.lifelogs?.nextCursor,
+    };
 
   } catch (error: any) {
     console.error('Error fetching lifelogs from Limitless API:', error);

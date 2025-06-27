@@ -22,4 +22,9 @@ export const ANALYSIS_TYPE_CONFIG: Record<AnalysisType, { displayName: string; p
     promptInstruction: 'Identify any clear action items, tasks, or follow-ups mentioned in the following transcript. Return them as a JSON array of strings. For example: `["Schedule a follow-up meeting", "Send the report by EOD"]`. If no action items are found, return an empty array.',
     requiresJson: true,
   },
+  [AnalysisType.ENTITY_EXTRACTION]: {
+    displayName: 'Key Entities',
+    promptInstruction: 'Extract key entities such as people, places, organizations, products, and important dates from the following transcript. Return them as a JSON object where keys are entity types (e.g., "people", "places", "organizations", "dates", "products") and values are arrays of unique strings. If no entities of a certain type are found, either omit the key or return an empty array for that type. For example: `{"people": ["John Doe", "Jane Smith"], "organizations": ["Acme Corp"], "dates": ["next Tuesday"]}`.',
+    requiresJson: true,
+  }
 };

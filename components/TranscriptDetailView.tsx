@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { Transcript, AnalysisContent, AnalysisType as AnalysisTypeEnum, GroundingMetadata } from '../types';
 import { AnalysisType } from '../types';
 import { performAnalysis } from '../services/geminiService';
@@ -60,6 +60,26 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
     }
   }, [transcript]);
 
+  // Effect to auto-fetch summary when a new transcript is selected
+  useEffect(() => {
+    if (transcript && transcript.content && !analysisData[AnalysisType.SUMMARY] && !isLoadingAnalysis[AnalysisType.SUMMARY] && !analysisErrors[AnalysisType.SUMMARY]) {
+      // Check if summary for this specific transcript ID has been fetched or is loading to avoid re-fetch if user clicks away and back
+      // This simple check assumes analysisData, isLoadingAnalysis, analysisErrors are reset when transcript ID changes (which they are implicitly via key or parent logic)
+      // A more robust way if state wasn't reset would be to store/check against transcript.id
+      console.log(`Auto-fetching summary for transcript ID: ${transcript.id}`);
+      handleAnalysisRequest(AnalysisType.SUMMARY);
+    }
+     // Reset analysis states when transcript changes to ensure fresh analyses for new selections
+     // and to make the auto-summary logic work correctly if the user navigates back and forth.
+     if (transcript) { // Only reset if there's a new transcript
+        setAnalysisData({});
+        setIsLoadingAnalysis({});
+        setAnalysisErrors({});
+        setGroundingMetadata({});
+     }
+
+  }, [transcript, handleAnalysisRequest]); // transcript.id would be better if transcript object identity isn't stable
+
   // isLoadingTranscript and transcriptError checks are removed as App.tsx now handles this.
   // If transcript is null, the placeholder below is shown.
 
@@ -77,7 +97,14 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
 
   return (
     <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-2xl rounded-xl p-4 md:p-6 h-full overflow-y-auto">
-      <h2 className="text-2xl md:text-3xl font-bold text-purple-300 mb-1">{transcript.title}</h2>
+      <div className="flex items-center mb-1">
+        <h2 className="text-2xl md:text-3xl font-bold text-purple-300">{transcript.title}</h2>
+        {transcript.isStarred && (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-yellow-400 ml-2">
+            <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
+          </svg>
+        )}
+      </div>
       <p className="text-sm text-gray-400 mb-4 border-b border-slate-700 pb-3">Recorded on: {new Date(transcript.date).toLocaleString()}</p>
       
       <div className="mb-6">
