@@ -12,6 +12,7 @@ export enum AnalysisType {
   TOPICS = 'topics',
   SENTIMENT = 'sentiment',
   ACTION_ITEMS = 'actionItems',
+  ENTITY_EXTRACTION = 'entityExtraction',
 }
 
 export interface AnalysisContent {
@@ -19,6 +20,7 @@ export interface AnalysisContent {
   [AnalysisType.TOPICS]?: string[];
   [AnalysisType.SENTIMENT]?: string;
   [AnalysisType.ACTION_ITEMS]?: string[];
+  [AnalysisType.ENTITY_EXTRACTION]?: Record<string, string[]>; // e.g. { "people": ["John", "Jane"], "locations": ["Paris"] }
 }
 
 // For grounding metadata from Gemini Search
@@ -34,3 +36,21 @@ export interface GroundingMetadata {
   groundingChunks?: GroundingChunk[];
   // other grounding metadata fields
 }
+
+// --- Speaker Context Types ---
+
+export interface SpeakerProfile {
+  id: string; // Unique ID for React keys, etc.
+  canonicalName: string;
+  nicknames: string[]; // Array of strings for various nicknames
+  characteristics: string; // Brief description of traits, role, speech style
+}
+
+export interface SpeakerContextCategory {
+  id: string; // Unique ID for the category
+  title: string; // e.g., "Family", "Work Colleagues"
+  profiles: SpeakerProfile[];
+}
+
+// Represents the overall state for speaker context
+export type SpeakerContextState = SpeakerContextCategory[];

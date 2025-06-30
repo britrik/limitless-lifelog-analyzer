@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import type { Transcript, AnalysisContent, AnalysisType as AnalysisTypeEnum, GroundingMetadata } from '../types';
+import React, { useState, useCallback, useEffect } from 'react';
+import type { Transcript, AnalysisContent, AnalysisType as AnalysisTypeEnum, GroundingMetadata, SpeakerContextState } from '../types';
 import { AnalysisType } from '../types';
 import { performAnalysis } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -9,6 +9,7 @@ import { ANALYSIS_TYPE_CONFIG } from '../constants';
 
 interface TranscriptDetailViewProps {
   transcript: Transcript | null;
+  speakerContext: SpeakerContextState; // Added speakerContext prop
   // isLoading?: boolean; // Removed: Handled by App.tsx before passing transcript
   // error?: string;    // Removed: Handled by App.tsx
 }
@@ -32,7 +33,7 @@ const AnalysisButton: React.FC<{
 };
 
 
-export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ transcript }) => {
+export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ transcript, speakerContext }) => {
   const [analysisData, setAnalysisData] = useState<Partial<AnalysisContent>>({});
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState<Partial<Record<AnalysisTypeEnum, boolean>>>({});
   const [analysisErrors, setAnalysisErrors] = useState<Partial<Record<AnalysisTypeEnum, string | null>>>({});
@@ -47,7 +48,7 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
     setGroundingMetadata(prev => ({ ...prev, [type]: null }));
 
     try {
-      const result = await performAnalysis(transcript.content, type);
+      const result = await performAnalysis(transcript.content, type, speakerContext); // Pass speakerContext
       setAnalysisData(prev => ({ ...prev, [type]: result.data }));
       if (result.groundingMetadata) {
         setGroundingMetadata(prev => ({...prev, [type]: result.groundingMetadata}));
@@ -58,7 +59,31 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
     } finally {
       setIsLoadingAnalysis(prev => ({ ...prev, [type]: false }));
     }
-  }, [transcript]);
+  }, [transcript, speakerContext]); // Added speakerContext to dependencies
+
+  // Effect to auto-fetch summary when a new transcript is selected
+  useEffect(() => {
+    // When transcript changes, reset all analysis data first
+    if (transcript) {
+      setAnalysisData({});
+      setIsLoadingAnalysis({});
+      setAnalysisErrors({});
+      setGroundingMetadata({});
+
+      // Then, if conditions are met, auto-fetch summary
+      // We explicitly check against initial/empty states here because they've just been reset.
+      if (transcript.content) { // No need to check analysisData/isLoading/analysisError for summary as they are fresh
+        console.log(`Auto-fetching summary for transcript ID: ${transcript.id} with current context.`);
+        handleAnalysisRequest(AnalysisType.SUMMARY);
+      }
+    } else {
+      // If transcript becomes null (deselected), clear all analysis data
+      setAnalysisData({});
+      setIsLoadingAnalysis({});
+      setAnalysisErrors({});
+      setGroundingMetadata({});
+    }
+  }, [transcript, handleAnalysisRequest]); // handleAnalysisRequest will change if transcript or speakerContext changes
 
   // isLoadingTranscript and transcriptError checks are removed as App.tsx now handles this.
   // If transcript is null, the placeholder below is shown.
@@ -77,7 +102,14 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
 
   return (
     <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-2xl rounded-xl p-4 md:p-6 h-full overflow-y-auto">
-      <h2 className="text-2xl md:text-3xl font-bold text-purple-300 mb-1">{transcript.title}</h2>
+      <div className="flex items-center mb-1">
+        <h2 className="text-2xl md:text-3xl font-bold text-purple-300">{transcript.title}</h2>
+        {transcript.isStarred && (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-yellow-400 ml-2">
+            <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
+          </svg>
+        )}
+      </div>
       <p className="text-sm text-gray-400 mb-4 border-b border-slate-700 pb-3">Recorded on: {new Date(transcript.date).toLocaleString()}</p>
       
       <div className="mb-6">

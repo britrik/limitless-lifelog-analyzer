@@ -40,6 +40,30 @@ export const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysisType, data, 
       return <p className="text-gray-400 italic">No {config.displayName.toLowerCase()} found.</p>;
     }
 
+    if (analysisType === AnalysisType.ENTITY_EXTRACTION) {
+      if (typeof data === 'object' && data !== null && Object.keys(data).length > 0) {
+        const entityEntries = Object.entries(data as Record<string, string[]>).filter(([_, values]) => Array.isArray(values) && values.length > 0);
+        if (entityEntries.length === 0) {
+          return <p className="text-gray-400 italic">No entities found in the transcript.</p>;
+        }
+        return (
+          <div className="space-y-3">
+            {entityEntries.map(([category, items]) => (
+              <div key={category}>
+                <h4 className="text-sm font-semibold text-purple-200 capitalize mb-1">{category.replace(/_/g, ' ')}:</h4>
+                <ul className="list-disc list-inside space-y-1 text-gray-300">
+                  {items.map((item: string, index: number) => (
+                    <li key={index} className="text-sm">{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      return <p className="text-gray-400 italic">No entities found or data is in an unexpected format.</p>;
+    }
+
     return <p className="text-gray-300 text-sm whitespace-pre-wrap">{data}</p>;
   };
 
