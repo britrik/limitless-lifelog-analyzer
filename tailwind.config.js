@@ -2,11 +2,8 @@
 export default {
   darkMode: ["class"],
   content: [
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    './app/**/*.{ts,tsx}',
-    './src/**/*.{ts,tsx}',
-    "./index.html", // Keep this if your index.html contains Tailwind classes
+    "./index.html",
+    './src/**/*.{ts,tsx}', // This covers all tsx files in src directory
   ],
   prefix: "",
   theme: {
