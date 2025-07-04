@@ -1,0 +1,5 @@
+{
+  "name": "Limitless Lifelog Analyzer",
+  "description": "An application to analyze lifelogs from your Limitless Pendant using the Gemini API. Discover insights, summaries, key topics, sentiment, and action items from your recorded conversations.",
+  "requestFramePermissions": []
+}

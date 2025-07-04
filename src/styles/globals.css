@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+* {
+  border-color: rgb(51 65 85); /* slate-700 */
+}
+
+body {
+  background-color: rgb(15 23 42); /* slate-900 */
+  color: rgb(241 245 249); /* slate-100 */
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+html {
+  scroll-behavior: smooth;
+}
