@@ -1,45 +1,212 @@
-
 import React from 'react';
 
 interface ErrorDisplayProps {
   message: string;
+  title?: string;
+  type?: 'error' | 'warning' | 'info';
   onRetry?: () => void;
-  isCorsError?: boolean;
+  onDismiss?: () => void;
+  retryText?: string;
+  dismissText?: string;
+  className?: string;
+  showIcon?: boolean;
+  fullWidth?: boolean;
 }
 
-export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ message, onRetry, isCorsError }) => {
-  return (
-    <div className="bg-red-900 bg-opacity-30 border border-red-700 text-red-300 p-4 rounded-lg shadow-md" role="alert">
-      <div className="flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mr-3 text-red-400">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-        </svg>
-        <p className="font-semibold">Error{isCorsError ? ": API Configuration Issue" : ""}</p>
-      </div>
-      <p className="mt-2 text-sm">{message}</p>
-      
-      {isCorsError && (
-        <div className="mt-3 text-xs p-3 bg-yellow-900 bg-opacity-40 border border-yellow-700 rounded-md text-yellow-300">
-          <p className="font-semibold mb-1">Developer Note (CORS):</p>
-          <p>This "Failed to fetch" error usually means the API server (api.limitless.ai) is not configured to allow requests from this web application's origin (e.g., localhost or the domain where it's hosted).</p>
-          <p className="mt-1">To resolve for local development:</p>
-          <ul className="list-disc list-inside ml-2 mt-1 space-y-0.5">
-            <li>Use a CORS proxy server as an intermediary.</li>
-            <li>If you control the API server, configure it to send `Access-Control-Allow-Origin` headers.</li>
-            <li>Temporarily use a browser extension that disables CORS checks (<strong>for testing only</strong>, as this disables important security features).</li>
-          </ul>
-          <p className="mt-1">Simply retrying will not fix this type of issue.</p>
-        </div>
-      )}
+export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
+  message,
+  title,
+  type = 'error',
+  onRetry,
+  onDismiss,
+  retryText = 'Try Again',
+  dismissText = 'Dismiss',
+  className = '',
+  showIcon = true,
+  fullWidth = false,
+}) => {
+  const typeStyles = {
+    error: {
+      container: 'bg-red-900/20 border-red-700 text-red-100',
+      icon: 'text-red-400',
+      button: 'bg-red-600 hover:bg-red-700 text-white',
+    },
+    warning: {
+      container: 'bg-yellow-900/20 border-yellow-700 text-yellow-100',
+      icon: 'text-yellow-400',
+      button: 'bg-yellow-600 hover:bg-yellow-700 text-white',
+    },
+    info: {
+      container: 'bg-blue-900/20 border-blue-700 text-blue-100',
+      icon: 'text-blue-400',
+      button: 'bg-blue-600 hover:bg-blue-700 text-white',
+    },
+  };
 
-      {onRetry && ( // onRetry will be undefined if App.tsx determines it's a CORS error
-        <button
-          onClick={onRetry}
-          className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors duration-150"
-        >
-          Try Again
-        </button>
-      )}
+  const styles = typeStyles[type];
+
+  const getIcon = () => {
+    switch (type) {
+      case 'error':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        );
+      case 'warning':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
+          </svg>
+        );
+      case 'info':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div
+      className={`
+        rounded-lg border p-4 
+        ${styles.container}
+        ${fullWidth ? 'w-full' : 'max-w-md'}
+        ${className}
+      `}
+    >
+      <div className="flex items-start space-x-3">
+        {showIcon && (
+          <div className={`flex-shrink-0 ${styles.icon}`}>
+            {getIcon()}
+          </div>
+        )}
+        
+        <div className="flex-1 min-w-0">
+          {title && (
+            <h3 className="text-sm font-semibold mb-1">
+              {title}
+            </h3>
+          )}
+          
+          <p className="text-sm leading-relaxed">
+            {message}
+          </p>
+          
+          {(onRetry || onDismiss) && (
+            <div className="flex items-center space-x-3 mt-4">
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className={`
+                    px-3 py-1.5 rounded text-sm font-medium transition-colors
+                    ${styles.button}
+                  `}
+                >
+                  {retryText}
+                </button>
+              )}
+              
+              {onDismiss && (
+                <button
+                  onClick={onDismiss}
+                  className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-slate-300 transition-colors"
+                >
+                  {dismissText}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="flex-shrink-0 text-slate-400 hover:text-slate-300 transition-colors"
+            aria-label="Dismiss"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   );
 };
+
+// Convenience components for common error types
+export const ApiErrorDisplay: React.FC<{
+  message: string;
+  onRetry?: () => void;
+  className?: string;
+}> = ({ message, onRetry, className }) => (
+  <ErrorDisplay
+    title="API Error"
+    message={message}
+    type="error"
+    onRetry={onRetry}
+    className={className}
+  />
+);
+
+export const NetworkErrorDisplay: React.FC<{
+  onRetry?: () => void;
+  className?: string;
+}> = ({ onRetry, className }) => (
+  <ErrorDisplay
+    title="Connection Error"
+    message="Unable to connect to the server. Please check your internet connection and try again."
+    type="error"
+    onRetry={onRetry}
+    className={className}
+  />
+);
+
+export const NotFoundErrorDisplay: React.FC<{
+  resource?: string;
+  className?: string;
+}> = ({ resource = 'resource', className }) => (
+  <ErrorDisplay
+    title="Not Found"
+    message={`The ${resource} you're looking for could not be found.`}
+    type="warning"
+    className={className}
+  />
+);
+
+export const PermissionErrorDisplay: React.FC<{
+  action?: string;
+  className?: string;
+}> = ({ action = 'perform this action', className }) => (
+  <ErrorDisplay
+    title="Permission Denied"
+    message={`You don't have permission to ${action}. Please check your API keys and try again.`}
+    type="error"
+    className={className}
+  />
+);
