@@ -1,19 +1,67 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Transcript } from '../types';
+import { AnalysisType } from '../types';
 
 interface TranscriptCardProps {
   transcript: Transcript;
   onClick: (transcript: Transcript) => void;
   onStarToggle: (transcriptId: string, isStarred: boolean) => void;
+  onAnalyzeClick?: (transcript: Transcript) => void;
   className?: string;
+}
+
+interface AnalysisStatus {
+  [key: string]: {
+    hasResult: boolean;
+    timestamp: string | null;
+  };
 }
 
 export const TranscriptCard: React.FC<TranscriptCardProps> = ({
   transcript,
   onClick,
   onStarToggle,
+  onAnalyzeClick,
   className = '',
 }) => {
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>({});
+
+  // Check for cached analysis results
+  useEffect(() => {
+    const checkAnalysisStatus = () => {
+      const status: AnalysisStatus = {};
+      
+      Object.values(AnalysisType).forEach(analysisType => {
+        const cacheKey = `analysis-${transcript.id}-${analysisType}`;
+        const cached = localStorage.getItem(cacheKey);
+        
+        if (cached) {
+          try {
+            const { timestamp } = JSON.parse(cached);
+            status[analysisType] = {
+              hasResult: true,
+              timestamp
+            };
+          } catch (error) {
+            status[analysisType] = {
+              hasResult: false,
+              timestamp: null
+            };
+          }
+        } else {
+          status[analysisType] = {
+            hasResult: false,
+            timestamp: null
+          };
+        }
+      });
+      
+      setAnalysisStatus(status);
+    };
+
+    checkAnalysisStatus();
+  }, [transcript.id]);
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -38,39 +86,77 @@ export const TranscriptCard: React.FC<TranscriptCardProps> = ({
     onClick(transcript);
   };
 
+  const handleAnalyzeClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    if (onAnalyzeClick) {
+      onAnalyzeClick(transcript);
+    } else {
+      // Fallback to regular click if no analyze handler
+      onClick(transcript);
+    }
+  };
+
+  // Count how many analyses have been completed
+  const completedAnalyses = Object.values(analysisStatus).filter(status => status.hasResult).length;
+  const totalAnalyses = Object.values(AnalysisType).length;
+  const hasAnyAnalysis = completedAnalyses > 0;
+
   return (
     <div
       className={`bg-slate-800 rounded-lg p-4 hover:bg-slate-750 transition-colors cursor-pointer border border-slate-700 hover:border-slate-600 ${className}`}
       onClick={handleCardClick}
     >
-      {/* Header with title and star */}
+      {/* Header with title and actions */}
       <div className="flex items-start justify-between mb-3">
         <h3 className="text-lg font-semibold text-slate-100 line-clamp-2 flex-1 mr-2">
           {transcript.title}
         </h3>
-        <button
-          onClick={handleStarClick}
-          className="flex-shrink-0 p-1 rounded-full hover:bg-slate-600 transition-colors"
-          aria-label={transcript.isStarred ? 'Remove from starred' : 'Add to starred'}
-        >
-          <svg
-            className={`h-5 w-5 ${
-              transcript.isStarred
-                ? 'text-yellow-400 fill-current'
-                : 'text-slate-400 hover:text-yellow-400'
-            }`}
-            fill={transcript.isStarred ? 'currentColor' : 'none'}
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Analysis Status Indicator */}
+          {hasAnyAnalysis && (
+            <div className="flex items-center gap-1 mr-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full" title={`${completedAnalyses}/${totalAnalyses} analyses completed`} />
+              <span className="text-xs text-slate-400">{completedAnalyses}</span>
+            </div>
+          )}
+          
+          {/* Quick Analyze Button */}
+          <button
+            onClick={handleAnalyzeClick}
+            className="p-1 rounded-full hover:bg-slate-600 transition-colors text-slate-400 hover:text-blue-400"
+            title="Analyze with AI"
+            aria-label="Analyze transcript with AI"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-            />
-          </svg>
-        </button>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </button>
+
+          {/* Star Button */}
+          <button
+            onClick={handleStarClick}
+            className="p-1 rounded-full hover:bg-slate-600 transition-colors"
+            aria-label={transcript.isStarred ? 'Remove from starred' : 'Add to starred'}
+          >
+            <svg
+              className={`h-5 w-5 ${
+                transcript.isStarred
+                  ? 'text-yellow-400 fill-current'
+                  : 'text-slate-400 hover:text-yellow-400'
+              }`}
+              fill={transcript.isStarred ? 'currentColor' : 'none'}
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Date */}
@@ -91,6 +177,40 @@ export const TranscriptCard: React.FC<TranscriptCardProps> = ({
         <p className="text-slate-300 text-sm line-clamp-3 leading-relaxed">
           {transcript.summary}
         </p>
+      )}
+
+      {/* Analysis Preview */}
+      {hasAnyAnalysis && (
+        <div className="mt-3 p-2 bg-slate-750 rounded border border-slate-600">
+          <div className="flex items-center gap-2 mb-1">
+            <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <span className="text-xs font-medium text-blue-400">AI Analysis Available</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(analysisStatus).map(([analysisType, status]) => {
+              if (!status.hasResult) return null;
+              
+              const displayNames: Record<string, string> = {
+                [AnalysisType.SUMMARY]: 'Summary',
+                [AnalysisType.TOPICS]: 'Topics',
+                [AnalysisType.SENTIMENT]: 'Sentiment',
+                [AnalysisType.ACTION_ITEMS]: 'Actions',
+                [AnalysisType.ENTITY_EXTRACTION]: 'Entities',
+              };
+              
+              return (
+                <span
+                  key={analysisType}
+                  className="px-1.5 py-0.5 bg-blue-900/30 text-blue-300 text-xs rounded"
+                >
+                  {displayNames[analysisType] || analysisType}
+                </span>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Footer with content indicator */}

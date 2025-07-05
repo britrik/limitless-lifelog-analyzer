@@ -34,6 +34,7 @@ export const Lifelogs: React.FC = () => {
   // Modal state
   const [selectedTranscript, setSelectedTranscript] = useState<Transcript | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalInitialTab, setModalInitialTab] = useState<'transcript' | 'analysis'>('transcript');
 
   // Load initial transcripts
   const loadTranscripts = useCallback(async (reset: boolean = false) => {
@@ -58,7 +59,6 @@ export const Lifelogs: React.FC = () => {
       }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load transcripts';
-
       setState(prev => ({
         ...prev,
         error: errorMessage,
@@ -70,15 +70,20 @@ export const Lifelogs: React.FC = () => {
 
   // Load more transcripts
   const loadMoreTranscripts = useCallback(() => {
-    if (state.hasMore && !state.isLoadingMore) {
+    if (!state.isLoadingMore && state.hasMore) {
       loadTranscripts(false);
     }
-  }, [state.hasMore, state.isLoadingMore, loadTranscripts]);
+  }, [state.isLoadingMore, state.hasMore, loadTranscripts]);
 
   // Initial load
   useEffect(() => {
     loadTranscripts(true);
   }, []);
+
+  // Handle retry
+  const handleRetry = useCallback(() => {
+    loadTranscripts(true);
+  }, [loadTranscripts]);
 
   // Handle star toggle
   const handleStarToggle = useCallback((transcriptId: string, isStarred: boolean) => {
@@ -91,18 +96,27 @@ export const Lifelogs: React.FC = () => {
       ),
     }));
 
-    // Update selected transcript if it's the one being starred
-    if (selectedTranscript?.id === transcriptId) {
+    // Update selected transcript if it's the one being toggled
+    if (selectedTranscript && selectedTranscript.id === transcriptId) {
       setSelectedTranscript(prev => prev ? { ...prev, isStarred } : null);
     }
 
-    // TODO: In a real app, you'd also make an API call to persist this change
+    // Here you would typically make an API call to update the star status
+    // For now, we'll just log it
     console.log(`Transcript ${transcriptId} ${isStarred ? 'starred' : 'unstarred'}`);
   }, [selectedTranscript]);
 
-  // Handle transcript click
+  // Handle transcript click (regular click - opens to transcript tab)
   const handleTranscriptClick = useCallback((transcript: Transcript) => {
     setSelectedTranscript(transcript);
+    setModalInitialTab('transcript');
+    setIsModalOpen(true);
+  }, []);
+
+  // Handle analyze click (opens to analysis tab)
+  const handleAnalyzeClick = useCallback((transcript: Transcript) => {
+    setSelectedTranscript(transcript);
+    setModalInitialTab('analysis');
     setIsModalOpen(true);
   }, []);
 
@@ -110,6 +124,7 @@ export const Lifelogs: React.FC = () => {
   const handleModalClose = useCallback(() => {
     setIsModalOpen(false);
     setSelectedTranscript(null);
+    setModalInitialTab('transcript');
   }, []);
 
   // Filter and sort transcripts
@@ -150,39 +165,22 @@ export const Lifelogs: React.FC = () => {
     return sorted;
   }, [state.transcripts, searchTerm, showStarredOnly, sortBy]);
 
-  // Handle retry
-  const handleRetry = useCallback(() => {
-    loadTranscripts(true);
-  }, [loadTranscripts]);
-
-  // Render loading state
+  // Show loading spinner for initial load
   if (state.isLoading && state.transcripts.length === 0) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-slate-100">Lifelogs</h1>
-        </div>
-        <div className="flex justify-center py-12">
-          <LoadingSpinner message="Loading your transcripts..." size="lg" />
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner />
       </div>
     );
   }
 
-  // Render error state
+  // Show error for initial load failure
   if (state.error && state.transcripts.length === 0) {
-    const isCorsError = state.error.toLowerCase().includes('cors') || 
-                       state.error.toLowerCase().includes('failed to fetch');
-    
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-slate-100">Lifelogs</h1>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
         <ErrorDisplay
           message={state.error}
-          onRetry={!isCorsError ? handleRetry : undefined}
-          isCorsError={isCorsError}
+          onRetry={handleRetry}
         />
       </div>
     );
@@ -192,11 +190,16 @@ export const Lifelogs: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-100">Lifelogs</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-slate-100">Lifelogs</h1>
+          <p className="text-slate-400 mt-1">
+            Browse and analyze your recorded conversations and meetings
+          </p>
+        </div>
         <button
           onClick={() => loadTranscripts(true)}
           disabled={state.isLoading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
         >
           {state.isLoading ? 'Refreshing...' : 'Refresh'}
         </button>
@@ -226,6 +229,7 @@ export const Lifelogs: React.FC = () => {
         transcripts={filteredAndSortedTranscripts}
         onTranscriptClick={handleTranscriptClick}
         onStarToggle={handleStarToggle}
+        onAnalyzeClick={handleAnalyzeClick}
         isLoading={state.isLoadingMore}
         hasMore={state.hasMore && !searchTerm && !showStarredOnly} // Only show load more if not filtering
         onLoadMore={loadMoreTranscripts}
@@ -237,6 +241,7 @@ export const Lifelogs: React.FC = () => {
         isOpen={isModalOpen}
         onClose={handleModalClose}
         onStarToggle={handleStarToggle}
+        initialTab={modalInitialTab}
       />
     </div>
   );

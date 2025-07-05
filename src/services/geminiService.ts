@@ -1,9 +1,9 @@
 import { GoogleGenAI, GenerateContentResponse, GenerateContentParameters, Part } from "@google/genai";
 import { GEMINI_MODEL_NAME, ANALYSIS_TYPE_CONFIG } from '../constants';
-import type { AnalysisType, GroundingMetadata, SpeakerContextState, SpeakerProfile } from '../types';
+import type { AnalysisType, GroundingMetadata, SpeakerContextState } from '../types';
 
 // Get Gemini API key from Vite environment variable
-const apiKey = import.meta.env.VITE_API_KEY;
+const apiKey = import.meta.env.VITE_API_KEY as string;
 
 let ai: GoogleGenAI | null = null;
 
@@ -156,9 +156,9 @@ export const performAnalysis = async (
     let analysisResult: any;
 
     if (config.requiresJson) {
-      analysisResult = parseJsonFromText(responseText);
+      analysisResult = parseJsonFromText(responseText || '');
     } else {
-      analysisResult = responseText;
+      analysisResult = responseText || '';
     }
 
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata || null;

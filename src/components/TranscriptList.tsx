@@ -6,6 +6,7 @@ interface TranscriptListProps {
   transcripts: Transcript[];
   onTranscriptClick: (transcript: Transcript) => void;
   onStarToggle: (transcriptId: string, isStarred: boolean) => void;
+  onAnalyzeClick?: (transcript: Transcript) => void;
   isLoading?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
@@ -16,6 +17,7 @@ export const TranscriptList: React.FC<TranscriptListProps> = ({
   transcripts,
   onTranscriptClick,
   onStarToggle,
+  onAnalyzeClick,
   isLoading = false,
   hasMore = false,
   onLoadMore,
@@ -57,6 +59,7 @@ export const TranscriptList: React.FC<TranscriptListProps> = ({
             transcript={transcript}
             onClick={onTranscriptClick}
             onStarToggle={onStarToggle}
+            onAnalyzeClick={onAnalyzeClick}
           />
         ))}
       </div>

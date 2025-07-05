@@ -3,7 +3,6 @@ import type { Transcript, AnalysisContent, AnalysisType as AnalysisTypeEnum, Gro
 import { AnalysisType } from '../types';
 import { performAnalysis } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
-import { ErrorDisplay } from './ErrorDisplay';
 import { AnalysisCard } from './AnalysisCard';
 import { ANALYSIS_TYPE_CONFIG } from '../constants';
 
@@ -38,6 +37,9 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState<Partial<Record<AnalysisTypeEnum, boolean>>>({});
   const [analysisErrors, setAnalysisErrors] = useState<Partial<Record<AnalysisTypeEnum, string | null>>>({});
   const [groundingMetadata, setGroundingMetadata] = useState<Partial<Record<AnalysisTypeEnum, GroundingMetadata | null>>>({});
+
+  // Suppress unused variable warning - groundingMetadata is used in state setters
+  void groundingMetadata;
 
 
   const handleAnalysisRequest = useCallback(async (type: AnalysisTypeEnum) => {
@@ -139,10 +141,10 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
               <AnalysisCard
                 key={type}
                 analysisType={type}
-                data={analysisData[type]}
-                isLoading={!!isLoadingAnalysis[type]}
+                result={analysisData[type]}
+                timestamp={null} // You might want to track timestamps for each analysis
+                title={ANALYSIS_TYPE_CONFIG[type].displayName}
                 error={analysisErrors[type] || null}
-                groundingMetadata={groundingMetadata[type] || null}
               />
             )
           ))}
