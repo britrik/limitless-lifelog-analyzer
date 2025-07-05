@@ -19,3 +19,27 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+/* Custom utilities */
+@layer utilities {
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+}
+
+/* Custom hover states */
+.hover\:bg-slate-750:hover {
+  background-color: rgb(30 41 59); /* Between slate-700 and slate-800 */
+}
