@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { ConnectionStatusIndicator } from './ConnectionStatus';
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -71,11 +72,10 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
             })}
           </nav>
 
-          {/* Right side - Status indicator */}
+          {/* Right side - Connection Status */}
           <div className="flex items-center space-x-3">
-            <div className="hidden sm:flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-slate-300">Connected</span>
+            <div className="hidden sm:block">
+              <ConnectionStatusIndicator className="text-sm" />
             </div>
           </div>
         </div>

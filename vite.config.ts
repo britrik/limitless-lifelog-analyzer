@@ -7,7 +7,7 @@ export default defineConfig({
     proxy: {
       // Proxy all API calls starting with /api/limitless to the real API server
       '/api/limitless': {
-        target: 'https://api.limitless.ai/v1',
+        target: 'https://api.limitless.ai',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api\/limitless/, ''),
         secure: true,

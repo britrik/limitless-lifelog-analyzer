@@ -1,15 +1,13 @@
 import type { Transcript } from '../types';
 
 // Read the Limitless API key from environment variables (Vite injects this at build time)
-const LIMITLESS_API_KEY = import.meta.env.VITE_LIMITLESS_API_KEY;
+const LIMITLESS_API_KEY = (import.meta as any).env?.VITE_LIMITLESS_API_KEY as string;
 
 if (!LIMITLESS_API_KEY) {
   console.error(
     "CRITICAL: Limitless API Key is NOT configured. Make sure VITE_LIMITLESS_API_KEY is set in your .env.local file. API calls to Limitless WILL FAIL."
   );
 }
-
-const LIMITLESS_API_BASE_URL = "/api/limitless";
 
 interface Lifelog {
   id: string;
@@ -106,11 +104,11 @@ export const fetchTranscripts = async (limit: number = 10, cursor?: string): Pro
   }
 
   try {
-    const response = await fetch(`${LIMITLESS_API_BASE_URL}/lifelogs?${params.toString()}`, {
+    const response = await fetch(`/api/limitless/v1/lifelogs?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'X-API-Key': LIMITLESS_API_KEY, 
-        'Accept': 'application/json', 
+        'X-API-Key': LIMITLESS_API_KEY,
+        'Accept': 'application/json',
       },
     });
 

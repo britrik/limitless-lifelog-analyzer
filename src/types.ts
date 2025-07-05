@@ -1,10 +1,10 @@
-
 export interface Transcript {
   id: string;
   title: string;
   date: string; // ISO date string, e.g., "2023-10-26T10:00:00Z"
   content: string;
   summary?: string; // Short summary, could be pre-generated or from initial fetch
+  isStarred?: boolean; // Whether the transcript is starred/favorited
 }
 
 export enum AnalysisType {
