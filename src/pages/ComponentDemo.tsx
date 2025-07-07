@@ -1,10 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LoadingSpinner, SmallSpinner, MediumSpinner, LargeSpinner, FullScreenSpinner } from '../components/LoadingSpinner';
 import { ErrorDisplay, ApiErrorDisplay, NetworkErrorDisplay, NotFoundErrorDisplay, PermissionErrorDisplay } from '../components/ErrorDisplay';
 
 export const ComponentDemo: React.FC = () => {
   const [showFullScreenSpinner, setShowFullScreenSpinner] = useState(false);
   const [showError, setShowError] = useState(false);
+
+  // Auto-hide full screen spinner after 3 seconds
+  useEffect(() => {
+    if (showFullScreenSpinner) {
+      const timer = setTimeout(() => {
+        setShowFullScreenSpinner(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showFullScreenSpinner]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -132,7 +143,7 @@ export const ComponentDemo: React.FC = () => {
       {/* Auto-hide full screen spinner */}
       {showFullScreenSpinner && (
         <div className="hidden">
-          {setTimeout(() => setShowFullScreenSpinner(false), 3000)}
+          {/* Spinner will auto-hide after 3 seconds via useEffect */}
         </div>
       )}
     </div>

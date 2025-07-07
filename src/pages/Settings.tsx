@@ -52,15 +52,25 @@ export const Settings: React.FC = () => {
   };
 
   const handleTestLimitlessConnection = async () => {
-    // Update the config service with current values before testing
-    configService.updateConfig(config);
-    await configService.testLimitlessConnection();
+    setIsTestingConnections(true);
+    try {
+      // Update the config service with current values before testing
+      configService.updateConfig(config);
+      await configService.testLimitlessConnection();
+    } finally {
+      setIsTestingConnections(false);
+    }
   };
 
   const handleTestGeminiConnection = async () => {
-    // Update the config service with current values before testing
-    configService.updateConfig(config);
-    await configService.testGeminiConnection();
+    setIsTestingConnections(true);
+    try {
+      // Update the config service with current values before testing
+      configService.updateConfig(config);
+      await configService.testGeminiConnection();
+    } finally {
+      setIsTestingConnections(false);
+    }
   };
 
   const handleTestAllConnections = async () => {
