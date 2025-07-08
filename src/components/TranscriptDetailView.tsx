@@ -3,13 +3,12 @@ import type { Transcript, AnalysisContent, AnalysisType as AnalysisTypeEnum, Gro
 import { AnalysisType } from '../types';
 import { performAnalysis } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
-import { ErrorDisplay } from './ErrorDisplay';
 import { AnalysisCard } from './AnalysisCard';
 import { ANALYSIS_TYPE_CONFIG } from '../constants';
 
 interface TranscriptDetailViewProps {
   transcript: Transcript | null;
-  speakerContext: SpeakerContextState; // Added speakerContext prop
+  speakerContext?: SpeakerContextState; // Made optional to match modal interface
   // isLoading?: boolean; // Removed: Handled by App.tsx before passing transcript
   // error?: string;    // Removed: Handled by App.tsx
 }
@@ -33,7 +32,7 @@ const AnalysisButton: React.FC<{
 };
 
 
-export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ transcript, speakerContext }) => {
+export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ transcript, speakerContext = [] }) => {
   const [analysisData, setAnalysisData] = useState<Partial<AnalysisContent>>({});
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState<Partial<Record<AnalysisTypeEnum, boolean>>>({});
   const [analysisErrors, setAnalysisErrors] = useState<Partial<Record<AnalysisTypeEnum, string | null>>>({});
@@ -90,7 +89,7 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
 
   if (!transcript) {
     return (
-      <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-2xl rounded-xl p-6 h-full flex flex-col items-center justify-center text-center">
+      <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-2xl rounded-xl p-6 flex flex-col items-center justify-center text-center min-h-[400px]">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-purple-400 mb-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
         </svg>
@@ -101,7 +100,7 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
   }
 
   return (
-    <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-2xl rounded-xl p-4 md:p-6 h-full overflow-y-auto">
+    <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-2xl rounded-xl p-4 md:p-6">
       <div className="flex items-center mb-1">
         <h2 className="text-2xl md:text-3xl font-bold text-purple-300">{transcript.title}</h2>
         {transcript.isStarred && (

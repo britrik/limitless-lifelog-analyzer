@@ -26,9 +26,16 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({ transcript, isSe
 
   return (
     <div className={itemClasses} onClick={onSelect}>
-      <h3 className={`font-semibold text-md ${isSelected ? 'text-white' : 'text-purple-300'}`}>{transcript.title}</h3>
-      <p className={`text-xs ${isSelected ? 'text-gray-200' : 'text-gray-400'}`}>{new Date(transcript.date).toLocaleDateString()}</p>
-      {transcript.summary && <p className={`mt-1 text-xs italic ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>{transcript.summary.substring(0, 70)}...</p>}
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className={`font-semibold text-md ${isSelected ? 'text-white' : 'text-purple-300'}`}>{transcript.title}</h3>
+          <p className={`text-xs ${isSelected ? 'text-gray-200' : 'text-gray-400'}`}>{new Date(transcript.date).toLocaleDateString()}</p>
+          {transcript.summary && <p className={`mt-1 text-xs italic ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>{transcript.summary.substring(0, 70)}...</p>}
+        </div>
+        {transcript.isStarred && (
+          <StarIcon className={`ml-2 flex-shrink-0 ${isSelected ? 'text-yellow-300' : 'text-yellow-400'}`} />
+        )}
+      </div>
     </div>
   );
 };

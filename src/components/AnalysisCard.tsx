@@ -3,6 +3,7 @@ import React from 'react';
 import { AnalysisType, GroundingMetadata } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorDisplay } from './ErrorDisplay';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { ANALYSIS_TYPE_CONFIG } from '../constants';
 
 interface AnalysisCardProps {
@@ -62,6 +63,12 @@ export const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysisType, data, 
         );
       }
       return <p className="text-gray-400 italic">No entities found or data is in an unexpected format.</p>;
+    }
+
+    // For text-based analysis (summary, sentiment, etc.), use MarkdownRenderer
+    // which will intelligently detect and render markdown or plain text
+    if (typeof data === 'string') {
+      return <MarkdownRenderer content={data} />;
     }
 
     return <p className="text-gray-300 text-sm whitespace-pre-wrap">{data}</p>;
