@@ -18,7 +18,7 @@ try {
   // The app will continue, but API calls will fail and show errors in the UI.
 }
 
-const parseJsonFromText = (text: string): any => {
+const parseJsonFromText = (text: string): unknown => {
   let jsonStr = text.trim();
   const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s; // Matches ```json ... ``` or ``` ... ```
   const match = jsonStr.match(fenceRegex);
@@ -104,7 +104,7 @@ export const performAnalysis = async (
   transcriptContent: string,
   analysisType: AnalysisType,
   speakerContext?: SpeakerContextState,
-): Promise<{ data: any, groundingMetadata?: GroundingMetadata | null }> => {
+): Promise<{ data: unknown, groundingMetadata?: GroundingMetadata | null }> => {
   if (!ai) {
     throw new Error("Gemini API client is not initialized. Check VITE_API_KEY configuration in your .env.local file.");
   }
@@ -153,7 +153,7 @@ export const performAnalysis = async (
     const response: GenerateContentResponse = await ai.models.generateContent(requestParams);
 
     const responseText = response.text;
-    let analysisResult: any;
+    let analysisResult: unknown;
 
     if (!responseText) {
       throw new Error('No response text received from Gemini API');
@@ -169,11 +169,12 @@ export const performAnalysis = async (
 
     return { data: analysisResult, groundingMetadata };
 
-  } catch (error: any) {
+  } catch (error) {
     console.error(`Gemini API error during ${analysisType} analysis:`, error);
-    if (error.message && error.message.includes("API key not valid")) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    if (message && message.includes("API key not valid")) {
       throw new Error("Gemini API key is invalid or not authorized. Please check VITE_API_KEY in your .env.local file.");
     }
-    throw new Error(`Failed to get ${analysisType} from Gemini: ${error.message || 'Unknown error'}`);
+    throw new Error(`Failed to get ${analysisType} from Gemini: ${message}`);
   }
 };

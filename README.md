@@ -129,6 +129,40 @@ src/
 
 ---
 
+## 🧪 Testing
+
+This project uses Playwright for End-to-End (E2E) smoke tests.
+
+### Running E2E Tests
+
+-   To run the dashboard smoke tests in headless mode:
+    ```bash
+    npm run test:e2e
+    ```
+-   To run the tests in headed mode for local debugging:
+    ```bash
+    npm run test:e2e:headed
+    ```
+
+Playwright will start the development server, run the tests, and then shut down the server. An HTML report will be available in `playwright-report/index.html` after the tests run.
+
+Unit tests are run using Jest. You can run them with:
+```bash
+npm run test
+```
+
+Linting and type checking can be run with:
+```bash
+npm run lint
+npm run typecheck
+```
+
+The CI script runs all checks:
+```bash
+npm run ci
+```
+---
+
 ## 📈 Analytics Features
 
 ### Dashboard Metrics

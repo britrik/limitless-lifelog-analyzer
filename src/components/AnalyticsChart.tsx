@@ -2,9 +2,9 @@ import React from 'react';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export interface ChartDataPoint {
-  date: string;
+  date: string; // Using string as current data prep provides formatted date/time strings
   value: number;
-  label?: string;
+  label: string; // Label is always provided by current data generation functions
 }
 
 interface AnalyticsChartProps {
