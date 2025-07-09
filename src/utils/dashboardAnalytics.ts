@@ -2,13 +2,12 @@ import { parseISO, isWithinInterval, subDays, format, startOfDay, startOfWeek, s
 import { Transcript, TimeRange, GroupBy } from '../types'; // Added TimeRange, GroupBy
 import { ChartDataPoint } from '../components/AnalyticsChart';
 
-// Added getGroupByFromTimeRange function
 export const getGroupByFromTimeRange = (timeRange: TimeRange): GroupBy => {
-  const map: Record<TimeRange, GroupBy> = {
+  const map: Record<string, GroupBy> = { // Use string for key type in Record for broader compatibility if needed, TimeRange is fine too
     '24h': 'hour',
     '7d': 'day',
     '30d': 'day',
-    '90d': 'week', // Matching the updated TimeRange type
+    '90d': 'week',
     '12w': 'week',
     '52w': 'week',
     'all': 'month',
@@ -63,26 +62,21 @@ export const filterTranscriptsByTimeRange = (
 ): Transcript[] => {
   if (timeRange === 'all') return transcripts;
 
-  // Find the configuration for the given timeRange (e.g., number of days)
   const rangeConfig = TIME_RANGES.find(r => r.value === timeRange);
 
-  // If the timeRange is not one of '7d', '30d', '90d' from TIME_RANGES,
-  // or if it's '24h', '12w', '52w' which don't have 'days' defined in TIME_RANGES,
-  // this function might not be suitable, or needs specific logic for them.
-  // For '24h', generateActivityChartData handles it separately.
-  // For now, if no 'days' are found, we'll return all transcripts to be safe,
-  // as this function is primarily designed for day-based filtering from TIME_RANGES.
+  // This function is primarily for day-based ranges defined in TIME_RANGES.
+  // Other ranges like '24h', '12w', '52w' if passed without 'days' config will result in returning all transcripts.
+  // Specific handling for '24h' (rolling last 24 hours) is done in generateActivityChartData directly.
   if (!rangeConfig || typeof rangeConfig.days !== 'number') {
-    // console.warn(`filterTranscriptsByTimeRange: No 'days' configuration for timeRange '${timeRange}'. Returning all transcripts.`);
-    // For '24h', '12w', '52w', etc., if they are passed here without a 'days' config.
-    // It's better to let functions like generateActivityChartData handle their specific filtering.
-    return transcripts; // Or handle more specific cases if needed
+    // console.warn(`filterTranscriptsByTimeRange: No 'days' configuration for timeRange '${timeRange}'. Depending on usage, this might be unintended.`);
+    return transcripts; // Fallback for ranges not explicitly configured with 'days'
   }
 
   const now = new Date();
-  // Filter from the start of 'days' ago to now.
-  const startDate = subDays(startOfDay(now), rangeConfig.days -1);
-
+  // Ensure the period covers the full number of days, e.g., for '7d', if today is July 9th,
+  // it should include all of July 3rd through July 9th.
+  // subDays(startOfDay(now), N-1) gives N days including today.
+  const startDate = subDays(startOfDay(now), rangeConfig.days - 1);
 
   return transcripts.filter(transcript => {
     try {
@@ -169,9 +163,11 @@ export const generateActivityChartData = (
     const twentyFourHoursAgo = dayjs().subtract(24, 'hours');
     relevantTranscripts = transcripts.filter(t => {
       try {
-        return dayjs(t.date).isAfter(twentyFourHoursAgo);
+        // Ensure transcript date is valid before processing
+        const transcriptDate = dayjs(t.date);
+        return transcriptDate.isValid() && transcriptDate.isAfter(twentyFourHoursAgo);
       } catch {
-        return false;
+        return false; // Skip if date parsing fails
       }
     });
   } else {
@@ -187,7 +183,7 @@ export const generateActivityChartData = (
 
   relevantTranscripts.forEach(transcript => {
     try {
-      const date = dayjs(transcript.date); // Ensure date is valid dayjs object
+      const date = dayjs(transcript.date);
       if (!date.isValid()) return; // Skip if date is invalid
 
       const groupKey = date.startOf(groupBy).valueOf();
@@ -218,8 +214,7 @@ export const generateActivityChartData = (
         dateFormat = 'MMM DD, YYYY';
         break;
       case 'week':
-        // For weeks, label with the start of the week.
-        dateFormat = `Week of ${group.date.format('MMM DD, YYYY')}`;
+        dateFormat = `Week of ${group.date.format('MMM DD, YYYY')}`; // Label with the start of the week.
         break;
       case 'month':
         dateFormat = 'MMM YYYY';
@@ -228,8 +223,8 @@ export const generateActivityChartData = (
         dateFormat = 'MMM DD, YYYY';
     }
     return {
-      date: group.date.format(dateFormat), // Use formatted date string
-      value: group.count, // Ensure value is a number
+      date: group.date.format(dateFormat),
+      value: group.count,
       label: `${group.count} recording${group.count !== 1 ? 's' : ''}`,
     };
   });
@@ -247,18 +242,19 @@ export const generateDurationChartData = (
   const groupBy = getGroupByFromTimeRange(timeRange); // Use new utility
 
   // Group by time period and sum durations
-  const groups: Record<string, { duration: number, sortDate: Date, count: number }> = {}; // Added count for averaging if needed
+  const groups: Record<string, { duration: number, sortDate: Date, count: number }> = {};
 
   filteredTranscripts.forEach(transcript => {
     try {
       const date = parseISO(transcript.date);
-      let key: string = format(date, 'MMM dd, yyyy'); // Default key
-      let sortDate: Date = startOfDay(date); // Default sortDate
+      // Default assignments to prevent TS2454
+      let key: string = format(date, 'MMM dd, yyyy');
+      let sortDate: Date = startOfDay(date);
 
       switch (groupBy) {
-        case 'hour': // Added hour case
-          key = format(date, 'MMM dd, HH:00');
-          sortDate = date; // Use actual date for hourly sorting, or startOf('hour', date)
+        case 'hour':
+          key = format(date, 'MMM dd, HH:00'); // Format for hourly display
+          sortDate = startOfDay(date); // Group by day for sorting, then display hour
           break;
         case 'day':
           key = format(date, 'MMM dd, yyyy');
@@ -266,14 +262,14 @@ export const generateDurationChartData = (
           break;
         case 'week':
           const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-          key = format(weekStart, 'MMM dd, yyyy');
+          key = format(weekStart, 'MMM dd, yyyy'); // Key by start of week
           sortDate = weekStart;
           break;
         case 'month':
           key = format(date, 'MMM yyyy');
           sortDate = startOfMonth(date);
           break;
-        // Default case is covered by initial assignment
+        // Default case covered by initial assignment (effectively 'day')
       }
 
       const duration = estimateDuration(transcript.content);
@@ -282,7 +278,7 @@ export const generateDurationChartData = (
         groups[key] = { duration: 0, sortDate, count: 0 };
       }
       groups[key].duration += duration;
-      groups[key].count++; // Increment count
+      groups[key].count++;
     } catch {
       // Skip invalid dates
     }
@@ -391,19 +387,19 @@ export const generateConversationDensityData = (
   const groupBy = getGroupByFromTimeRange(timeRange); // Use new utility
 
   // Group by time period and calculate average conversation density
-  // Changed totalDuration to totalDurationMinutes for clarity
   const groups: Record<string, { totalWords: number; totalDurationMinutes: number; count: number; sortDate: Date }> = {};
 
   filteredTranscripts.forEach(transcript => {
     try {
       const date = parseISO(transcript.date);
-      let key: string = format(date, 'MMM dd, yyyy'); // Default key
-      let sortDate: Date = startOfDay(date); // Default sortDate
+      // Default assignments to prevent TS2454
+      let key: string = format(date, 'MMM dd, yyyy');
+      let sortDate: Date = startOfDay(date);
 
       switch (groupBy) {
-        case 'hour': // Added hour case
+        case 'hour':
           key = format(date, 'MMM dd, HH:00');
-          sortDate = date;
+          sortDate = startOfDay(date); // Group by day for sorting, then display hour
           break;
         case 'day':
           key = format(date, 'MMM dd, yyyy');
@@ -418,7 +414,7 @@ export const generateConversationDensityData = (
           key = format(date, 'MMM yyyy');
           sortDate = startOfMonth(date);
           break;
-        // Default case is covered by initial assignment
+        // Default case covered by initial assignment
       }
 
       // Estimate words (rough: content length / 5 characters per word)
@@ -427,12 +423,11 @@ export const generateConversationDensityData = (
       const durationMinutes = Math.max(1, wordCount / 150); // Min 1 minute to avoid division by zero
 
       if (!groups[key]) {
-        // Use totalDurationMinutes here
         groups[key] = { totalWords: 0, totalDurationMinutes: 0, count: 0, sortDate };
       }
 
       groups[key].totalWords += wordCount;
-      groups[key].totalDurationMinutes += durationMinutes; // Use totalDurationMinutes here
+      groups[key].totalDurationMinutes += durationMinutes;
       groups[key].count += 1;
     } catch {
       // Skip invalid dates
@@ -442,7 +437,6 @@ export const generateConversationDensityData = (
   return Object.entries(groups)
     .map(([dateLabel, data]) => ({
       date: dateLabel,
-      // Use totalDurationMinutes here
       value: data.count > 0 ? Math.round(data.totalWords / data.totalDurationMinutes) : 0,
       label: `${data.count > 0 ? Math.round(data.totalWords / data.totalDurationMinutes) : 0} WPM`,
     }))
@@ -504,7 +498,6 @@ export const generateSentimentTrendData = (
   const groupBy = getGroupByFromTimeRange(timeRange); // Use new utility
 
   // Group by time period and calculate sentiment proxy
-  // Renamed positiveWords to sentimentScoreSum for clarity, and removed totalWords as it's not used for final value.
   const groups: Record<string, { sentimentScoreSum: number; count: number; sortDate: Date }> = {};
 
   // Simple positive word indicators (can be enhanced)
@@ -514,13 +507,14 @@ export const generateSentimentTrendData = (
   filteredTranscripts.forEach(transcript => {
     try {
       const date = parseISO(transcript.date);
-      let key: string = format(date, 'MMM dd, yyyy'); // Default key
-      let sortDate: Date = startOfDay(date); // Default sortDate
+      // Default assignments to prevent TS2454
+      let key: string = format(date, 'MMM dd, yyyy');
+      let sortDate: Date = startOfDay(date);
 
       switch (groupBy) {
-        case 'hour': // Added hour case
+        case 'hour':
           key = format(date, 'MMM dd, HH:00');
-          sortDate = date;
+          sortDate = startOfDay(date);
           break;
         case 'day':
           key = format(date, 'MMM dd, yyyy');
@@ -535,26 +529,22 @@ export const generateSentimentTrendData = (
           key = format(date, 'MMM yyyy');
           sortDate = startOfMonth(date);
           break;
-        // Default case is covered by initial assignment
+        // Default case covered by initial assignment
       }
 
       const content = transcript.content.toLowerCase();
 
-      const positiveCount = positiveWords.reduce((count, word) =>
-        count + (content.match(new RegExp(word, 'g')) || []).length, 0);
-      const negativeCount = negativeWords.reduce((count, word) =>
-        count + (content.match(new RegExp(word, 'g')) || []).length, 0);
-
-      const totalWords = Math.max(1, content.split(/\s+/).length); // Avoid division by zero
-      const sentimentScore = (positiveCount - negativeCount) / totalWords * 100;
+      const positiveCount = positiveWords.reduce((sum, word) => sum + (content.match(new RegExp(`\\b${word}\\b`, 'g')) || []).length, 0);
+      const negativeCount = negativeWords.reduce((sum, word) => sum + (content.match(new RegExp(`\\b${word}\\b`, 'g')) || []).length, 0);
+      const totalWordsInTranscript = Math.max(1, content.split(/\s+/).length); // Avoid division by zero for this transcript
+      const sentimentScore = (positiveCount - negativeCount) / totalWordsInTranscript * 100;
 
 
       if (!groups[key]) {
-        // Use sentimentScoreSum here
         groups[key] = { sentimentScoreSum: 0, count: 0, sortDate };
       }
 
-      groups[key].sentimentScoreSum += sentimentScore; // Use sentimentScoreSum
+      groups[key].sentimentScoreSum += sentimentScore;
       groups[key].count += 1;
     } catch {
       // Skip invalid dates
@@ -564,7 +554,6 @@ export const generateSentimentTrendData = (
   return Object.entries(groups)
     .map(([dateLabel, data]) => ({
       date: dateLabel,
-      // Use sentimentScoreSum here for the average
       value: data.count > 0 ? Math.round(data.sentimentScoreSum / data.count) : 0,
       label: `Sentiment: ${(data.count > 0 ? Math.round(data.sentimentScoreSum / data.count) : 0)}`,
     }))

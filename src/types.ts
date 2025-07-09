@@ -8,7 +8,6 @@ export interface Transcript {
   isStarred?: boolean; // Whether the transcript is starred/favorited
 }
 
-// Updated TimeRange to include '90d' as used in the UI and existing logic
 export type TimeRange = '24h' | '7d' | '30d' | '90d' | '12w' | '52w' | 'all';
 export type GroupBy = 'hour' | 'day' | 'week' | 'month';
 
