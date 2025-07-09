@@ -12,6 +12,7 @@
     "@google/genai": "^1.6.0",
     "@types/react-router-dom": "^5.3.3",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.13",
     "marked": "^16.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

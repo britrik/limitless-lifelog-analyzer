@@ -110,15 +110,15 @@ export const Dashboard: React.FC = () => {
 
   const activityChartData = useMemo((): ChartDataPoint[] => {
     return generateActivityChartData(transcripts, timeRange);
-  }, [transcripts, timeRange]);
+  }, [transcripts, timeRange]); // Added timeRange
 
   const sentimentTrendData = useMemo((): ChartDataPoint[] => {
     return generateSentimentTrendData(transcripts, timeRange);
-  }, [transcripts, timeRange]);
+  }, [transcripts, timeRange]); // Added timeRange
 
   const durationChartData = useMemo((): ChartDataPoint[] => {
     return generateDurationChartData(transcripts, timeRange);
-  }, [transcripts, timeRange]);
+  }, [transcripts, timeRange]); // Added timeRange
 
 
   // Get recent activity
