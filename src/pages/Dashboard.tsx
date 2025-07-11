@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Grid, Paper, Typography, Select, MenuItem, FormControl, InputLabel, Box, Tooltip } from '@mui/material';
-import { ErrorBoundary } from 'react-error-boundary'; // Added import (npm install react-error-boundary)
-import { calculateDashboardMetrics, filterTranscriptsByTimeRange, getRecentActivity, generateActivityChartData, generateDurationChartData, generateConversationDensityData, generateHourlyActivityData, generateSentimentTrendData, TIME_RANGES } from '../utils/dashboardAnalytics';
-import { Transcript } from '../types';
+import { ErrorBoundary } from 'react-error-boundary'; // Added import (ensure installed: npm install react-error-boundary)
+import { calculateDashboardMetrics, filterTranscriptsByTimeRange, getRecentActivity, generateActivityChartData, generateDurationChartData, generateConversationDensityData, generateHourlyActivityData, generateSentimentTrendData, TIME_RANGES } from 'utils/dashboardAnalytics'; // Absolute import
+import { Transcript } from 'types'; // Absolute import (adjust if types.ts is not in src/types/)
 
-// Fixed imports based on repo structure (relative from src/pages/; no 'charts/' dir)
-import MetricCard from '../components/AnalysisCard'; // Assuming AnalysisCard.tsx is your MetricCard; adjust if wrong (or use the placeholder above)
-import LineChart from '../components/AnalyticsChart'; // Assuming AnalyticsChart.tsx is LineChart; adjust if it's a different file
-import BarChart from '../components/AnalyticsChart'; // Same assumption; if separate, update path
-import HeatmapChart from '../components/ActivityHeatmap'; // Matches ActivityHeatmap.tsx
-import RecentActivityList from '../components/RecentActivityList'; // Exists in components/
+// Absolute imports based on your structure
+import MetricCard from 'components/MetricCard'; // Your new file
+import AnalyticsChart from 'components/AnalyticsChart'; // Assuming this handles LineChart and BarChart (alias below if needed)
+import ActivityHeatmap from 'components/ActivityHeatmap'; // For HeatmapChart
+import RecentActivityList from 'components/RecentActivityList'; // Exists
 
-import { fetchTranscripts } from '../services/apiService';
+import { fetchTranscripts } from 'services/apiService'; // Absolute import
+
+// Aliases if AnalyticsChart is used for multiple chart types (adjust as needed)
+const LineChart = AnalyticsChart;
+const BarChart = AnalyticsChart;
+const HeatmapChart = ActivityHeatmap;
 
 // Fallback component for ErrorBoundary (Added)
 const ChartErrorFallback = ({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) => (
