@@ -27,7 +27,7 @@ const ChartErrorFallback = ({ error, resetErrorBoundary }: { error: Error; reset
   </Box>
 );
 
-const Dashboard: React.FC = () => {
+export const Dashboard: React.FC = () => {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -200,5 +200,3 @@ const Dashboard: React.FC = () => {
     </Box>
   );
 };
-
-export default Dashboard;
