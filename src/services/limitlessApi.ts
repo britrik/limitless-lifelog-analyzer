@@ -9,7 +9,17 @@ if (!LIMITLESS_API_KEY) {
   );
 }
 
-const LIMITLESS_API_BASE_URL = "/api/limitless";
+// Dynamically set the API base URL based on the environment
+const PROD_API_URL = 'https://api.limitless.com'; // Your production API URL
+const DEV_PROXY_PATH = '/api/limitless';         // The path configured in Vite proxy
+
+const LIMITLESS_API_BASE_URL = import.meta.env.DEV ? DEV_PROXY_PATH : PROD_API_URL;
+
+if (import.meta.env.DEV) {
+  console.log("Development mode: Using proxy path for API calls:", LIMITLESS_API_BASE_URL);
+} else {
+  console.log("Production mode: Using direct API URL:", LIMITLESS_API_BASE_URL);
+}
 
 interface Lifelog {
   id: string;

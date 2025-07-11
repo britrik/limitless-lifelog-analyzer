@@ -125,76 +125,93 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
     return weekGroups;
   }, [heatmapData.activities]);
 
+  // Check if there's any actual activity to display.
+  const hasActivityToShow = useMemo(() => {
+    if (transcripts.length === 0) return false;
+    return heatmapData.activities.some(activity => activity.count > 0);
+  }, [heatmapData.activities, transcripts.length]);
+
   return (
-    <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-xl rounded-xl p-6 border border-slate-700">
+    <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-xl rounded-xl p-6 border border-slate-700 min-h-[200px]"> {/* Added min-height */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-white">Activity Heatmap</h3>
-        <div className="flex items-center space-x-2 text-sm text-slate-400">
-          <span>Less</span>
-          <div className="flex space-x-1">
-            <div className="w-3 h-3 rounded-sm bg-slate-700"></div>
-            <div className="w-3 h-3 rounded-sm bg-green-900"></div>
-            <div className="w-3 h-3 rounded-sm bg-green-700"></div>
-            <div className="w-3 h-3 rounded-sm bg-green-500"></div>
-            <div className="w-3 h-3 rounded-sm bg-green-400"></div>
+        {hasActivityToShow && (
+          <div className="flex items-center space-x-2 text-sm text-slate-400">
+            <span>Less</span>
+            <div className="flex space-x-1">
+              <div className="w-3 h-3 rounded-sm bg-slate-700"></div>
+              <div className="w-3 h-3 rounded-sm bg-green-900"></div>
+              <div className="w-3 h-3 rounded-sm bg-green-700"></div>
+              <div className="w-3 h-3 rounded-sm bg-green-500"></div>
+              <div className="w-3 h-3 rounded-sm bg-green-400"></div>
+            </div>
+            <span>More</span>
           </div>
-          <span>More</span>
-        </div>
+        )}
       </div>
       
-      <div className="space-y-2">
-        {/* Week day labels */}
-        <div className="flex items-center">
-          <div className="w-8"></div> {/* Spacer for alignment */}
-          <div className="grid grid-cols-7 gap-1 flex-1">
-            {weekDays.map(day => (
-              <div key={day} className="text-xs text-slate-400 text-center">
-                {day}
-              </div>
-            ))}
-          </div>
+      {!hasActivityToShow ? (
+        <div className="flex items-center justify-center h-full py-10"> {/* Adjusted for vertical centering */}
+          <p className="text-slate-400">No activity data available for this period.</p>
         </div>
-        
-        {/* Heatmap grid */}
-        <div className="space-y-1">
-          {weeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="flex items-center">
-              <div className="w-8 text-xs text-slate-400">
-                {weekIndex === 0 || weekIndex === weeks.length - 1 
-                  ? format(parseISO(week[0]?.date || ''), 'MMM')
-                  : ''
-                }
-              </div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {/* Week day labels */}
+            <div className="flex items-center">
+              <div className="w-8"></div> {/* Spacer for alignment */}
               <div className="grid grid-cols-7 gap-1 flex-1">
-                {Array.from({ length: 7 }, (_, dayIndex) => {
-                  const activity = week[dayIndex];
-                  if (!activity) {
-                    return <div key={dayIndex} className="w-3 h-3"></div>;
-                  }
-                  
-                  return (
-                    <div
-                      key={activity.date}
-                      className={`w-3 h-3 rounded-sm cursor-pointer transition-all hover:ring-2 hover:ring-white hover:ring-opacity-50 ${getIntensityColor(
-                        activity.count,
-                        heatmapData.maxCount
-                      )}`}
-                      title={`${format(parseISO(activity.date), 'MMM d, yyyy')}: ${activity.count} recording${activity.count !== 1 ? 's' : ''}`}
-                    />
-                  );
-                })}
+                {weekDays.map(day => (
+                  <div key={day} className="text-xs text-slate-400 text-center">
+                    {day}
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-      
-      <div className="mt-4 text-sm text-slate-400">
-        <p>
-          {heatmapData.activities.filter(a => a.count > 0).length} active days in the last{' '}
-          {timeRange === '7d' ? '7 days' : timeRange === '30d' ? '30 days' : '90 days'}
-        </p>
-      </div>
+
+            {/* Heatmap grid */}
+            <div className="space-y-1">
+              {weeks.map((week, weekIndex) => (
+                <div key={weekIndex} className="flex items-center">
+                  <div className="w-8 text-xs text-slate-400">
+                    {/* Ensure week[0] and week[0].date exist before formatting */}
+                    {(weekIndex === 0 || weekIndex === weeks.length - 1) && week[0]?.date
+                      ? format(parseISO(week[0].date), 'MMM')
+                      : ''
+                    }
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 flex-1">
+                    {Array.from({ length: 7 }, (_, dayIndex) => {
+                      const activity = week[dayIndex];
+                      if (!activity) {
+                        return <div key={dayIndex} className="w-3 h-3"></div>;
+                      }
+
+                      return (
+                        <div
+                          key={activity.date}
+                          className={`w-3 h-3 rounded-sm cursor-pointer transition-all hover:ring-2 hover:ring-white hover:ring-opacity-50 ${getIntensityColor(
+                            activity.count,
+                            heatmapData.maxCount
+                          )}`}
+                          title={`${format(parseISO(activity.date), 'MMM d, yyyy')}: ${activity.count} recording${activity.count !== 1 ? 's' : ''}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 text-sm text-slate-400">
+            <p>
+              {heatmapData.activities.filter(a => a.count > 0).length} active days in the last{' '}
+              {timeRange === '7d' ? '7 days' : timeRange === '30d' ? '30 days' : timeRange === '90d' ? '90 days' : 'selected period'}.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 };

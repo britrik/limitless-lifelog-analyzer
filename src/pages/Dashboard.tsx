@@ -11,9 +11,11 @@ import {
   generateDurationChartData,
   generateConversationDensityData,
   generateSentimentTrendData,
-  TIME_RANGES
+  TIME_RANGES,
+  type DashboardMetrics, // Import type
+  type TimeRangeFilter   // Import type
 } from 'utils/dashboardAnalytics';
-import { Transcript } from 'types'; // Assuming Transcript type is defined in src/types.ts
+import { Transcript, ChartDataResponse as GenericChartDataResponse, ActivityItem } from 'types'; // Renamed to avoid conflict, Added ActivityItem
 
 // Components are imported using named exports from the barrel file src/components/index.ts
 import {
@@ -49,10 +51,9 @@ export const Dashboard: React.FC = () => {
   // State for storing all fetched transcripts.
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   // State for the selected time range filter.
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [timeRange, setTimeRange] = useState<TimeRangeFilter['value']>('30d'); // Use value from imported type
   // State for storing calculated dashboard metrics.
-  // TODO: Define DashboardMetrics type, assuming it's in types.ts or similar.
-  const [metrics, setMetrics] = useState<any>({ // Replace 'any' with DashboardMetrics type
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalRecordings: 0,
     hoursRecorded: 0,
     aiAnalyses: 0,
@@ -82,11 +83,16 @@ export const Dashboard: React.FC = () => {
       const result: FetchTranscriptsResult = await fetchTranscripts(100, undefined, true);
       setTranscripts(result.transcripts);
       if (result.transcripts.length === 0) {
-        console.warn("Dashboard: No transcripts received from API.");
+        console.warn("Dashboard: No transcripts received from API. This could be expected or indicate an issue.");
       }
     } catch (err) {
       console.error('Dashboard: Failed to fetch transcripts:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred while fetching data.');
+      const specificMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      setError(
+        `Failed to load dashboard data. ${specificMessage} This could be due to network issues, an invalid API key, ` +
+        'or problems reaching the Limitless API. Please check your setup and try again. ' +
+        '(Ensure VITE_LIMITLESS_API_KEY is set in .env.local and vite.config.ts proxy is active for dev.)'
+      );
     } finally {
       setLoading(false);
     }
@@ -116,18 +122,18 @@ export const Dashboard: React.FC = () => {
   // useMemo hooks to generate data for various charts.
   // These hooks depend on filteredTranscripts and timeRange.
   // They return default/empty data structures if an error occurred or if there's no data.
-  const activityData = useMemo(() => {
-    if (error || filteredTranscripts.length === 0) return { data: [], status: 'success' }; // Ensure 'status' is part of expected type
+  const activityData = useMemo((): GenericChartDataResponse => {
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No activity data.' };
     return generateActivityChartData(filteredTranscripts, timeRange);
   }, [filteredTranscripts, timeRange, error]);
 
-  const durationData = useMemo(() => {
-    if (error || filteredTranscripts.length === 0) return { data: [], status: 'success' };
+  const durationData = useMemo((): GenericChartDataResponse => {
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No duration data.' };
     return generateDurationChartData(filteredTranscripts, timeRange);
   }, [filteredTranscripts, timeRange, error]);
 
-  const densityData = useMemo(() => {
-    if (error || filteredTranscripts.length === 0) return { data: [], status: 'success' };
+  const densityData = useMemo((): GenericChartDataResponse => {
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No density data.' };
     return generateConversationDensityData(filteredTranscripts, timeRange);
   }, [filteredTranscripts, timeRange, error]);
 
@@ -135,34 +141,38 @@ export const Dashboard: React.FC = () => {
   // ActivityHeatmap now takes filteredTranscripts and timeRange directly to do its own processing.
 
   // State for sentiment analysis data.
-  // TODO: Define ChartDataResponse type.
-  const [sentimentData, setSentimentData] = useState<any>({ data: [], status: 'loading' }); // Replace 'any'
+  const [sentimentData, setSentimentData] = useState<GenericChartDataResponse>({ data: [], status: 'loading' });
 
   // useEffect hook to load sentiment data.
   // This runs when filteredTranscripts or timeRange changes, or if an error occurs.
   useEffect(() => {
     if (error || filteredTranscripts.length === 0) {
-      setSentimentData({ data: [], status: error ? 'error' : 'success' });
+      setSentimentData({ data: [], status: error ? 'error' : 'no-data', message: error ? 'Error loading sentiment' : 'No data for sentiment' });
       return;
     }
     const loadSentiment = async () => {
       setSentimentData({ data: [], status: 'loading' });
-      const data = await generateSentimentTrendData(filteredTranscripts, timeRange);
-      setSentimentData(data);
+      try {
+        const data = await generateSentimentTrendData(filteredTranscripts, timeRange);
+        setSentimentData(data);
+      } catch (sentimentError) {
+        console.error("Failed to generate sentiment data:", sentimentError);
+        setSentimentData({ data: [], status: 'error', message: 'Could not load sentiment data.' });
+      }
     };
     loadSentiment();
   }, [filteredTranscripts, timeRange, error]);
 
   // useMemo hook to get recent activity items.
   // Returns an empty array if an error occurred.
-  const recentActivity = useMemo(() => {
+  const recentActivity = useMemo((): ActivityItem[] => {
     if (error) return [];
     return getRecentActivity(transcripts);
   }, [transcripts, error]);
 
   // Handler for changing the time range filter.
   const handleTimeRangeChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setTimeRange(event.target.value as '7d' | '30d' | '90d' | 'all');
+    setTimeRange(event.target.value as TimeRangeFilter['value']);
   };
 
   // Conditional rendering for loading state.
@@ -194,8 +204,7 @@ export const Dashboard: React.FC = () => {
       <FormControl sx={{ mb: 3, minWidth: 120 }}>
         <InputLabel>Time Range</InputLabel>
         <Select value={timeRange} onChange={handleTimeRangeChange}>
-          {/* TODO: Define TimeRangeFilter type for TIME_RANGES items */}
-          {TIME_RANGES.map((range: any) => ( // Replace 'any'
+          {TIME_RANGES.map((range: TimeRangeFilter) => (
             <MenuItem key={range.value} value={range.value}>
               {range.label}
             </MenuItem>
@@ -250,31 +259,26 @@ export const Dashboard: React.FC = () => {
       <ErrorBoundary FallbackComponent={ChartErrorFallback} resetKeys={[timeRange]}>
         <Grid container spacing={3} sx={{ mt: 4 }}>
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6">Activity Over Time</Typography>
-              <LineChart data={activityData.data} />
+            <Paper sx={{ p: 2, minHeight: '380px', display: 'flex', flexDirection: 'column' }}>
+              {/* Pass the whole chartResponse object to AnalyticsChart */}
+              <LineChart chartResponse={activityData} type="line" title="Activity Over Time" />
             </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6">Recording Duration</Typography>
-              <BarChart data={durationData.data} />
+            <Paper sx={{ p: 2, minHeight: '380px', display: 'flex', flexDirection: 'column' }}>
+              <BarChart chartResponse={durationData} type="bar" title="Recording Duration" />
             </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6">Conversation Density (WPM)</Typography>
-              <LineChart data={densityData.data} />
+            <Paper sx={{ p: 2, minHeight: '380px', display: 'flex', flexDirection: 'column' }}>
+              <LineChart chartResponse={densityData} type="line" title="Conversation Density (WPM)" />
             </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6">Sentiment Trend</Typography>
-              {sentimentData.status === 'loading' ? (
-                <Typography>Loading sentiment data...</Typography>
-              ) : (
-                <LineChart data={sentimentData.data} />
-              )}
+            <Paper sx={{ p: 2, minHeight: '380px', display: 'flex', flexDirection: 'column' }}>
+              {/* For Sentiment Trend, AnalyticsChart expects chartResponse prop.
+                  The sentimentData state already matches ChartDataResponse structure. */}
+              <LineChart chartResponse={sentimentData} type="line" title="Sentiment Trend" />
             </Paper>
           </Grid>
         </Grid>

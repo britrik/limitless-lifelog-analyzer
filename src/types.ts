@@ -75,3 +75,13 @@ export interface ChartDataResponse {
   status: ChartStatus;
   message?: string; // Optional message, e.g., for 'no-data' or 'error' states
 }
+
+// --- Activity Item Type (for RecentActivityList) ---
+export interface ActivityItem {
+  id: string;
+  type: 'recording' | 'analysis' | 'bookmark'; // Extend as needed
+  title: string;
+  description: string; // Main content or description
+  timestamp: string;   // ISO date string for sorting and display
+  relativeTime: string; // Human-readable time ago (e.g., "2 hours ago")
+}
