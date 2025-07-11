@@ -6,6 +6,24 @@ import { performAnalysis } from '../services/geminiService';
 // Cache for sentiment analysis results
 const sentimentCache = new Map<string, number | null>();
 
+// Define GroupBy type
+export type GroupBy = 'day' | 'week' | 'month';
+
+// Helper function to get default groupBy from timeRange
+const getGroupByFromTimeRange = (timeRange: '7d' | '30d' | '90d' | 'all'): GroupBy => {
+  switch (timeRange) {
+    case '7d':
+    case '30d':
+      return 'day';
+    case '90d':
+      return 'week';
+    case 'all':
+      return 'month';
+    default:
+      return 'day'; // Default fallback, though should not be reached with current types
+  }
+};
+
 export interface DashboardMetrics {
   totalRecordings: number;
   hoursRecorded: number;
@@ -205,7 +223,7 @@ export const calculateDashboardMetrics = (
 export const generateActivityChartData = (
   transcripts: Transcript[],
   timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: 'day' | 'week' | 'month' // Renamed to avoid conflict with internal variable
+  customGroupBy?: GroupBy
 ): ChartDataResponse => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
@@ -213,24 +231,7 @@ export const generateActivityChartData = (
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  let resolvedGroupBy = customGroupBy;
-  // Determine grouping based on time range if not specified by customGroupBy
-  if (!resolvedGroupBy) {
-    switch (timeRange) {
-      case '7d':
-        resolvedGroupBy = 'day';
-        break;
-      case '30d':
-        resolvedGroupBy = 'day';
-        break;
-      case '90d':
-        resolvedGroupBy = 'week';
-        break;
-      case 'all':
-        resolvedGroupBy = 'month';
-        break;
-    }
-  }
+  const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
   // Group transcripts by time period
   const groups: Record<string, { transcripts: Transcript[], sortDate: Date }> = {};
@@ -241,7 +242,7 @@ export const generateActivityChartData = (
       let key: string;
       let sortDate: Date;
 
-      switch (resolvedGroupBy) {
+      switch (groupBy) { // Use the new 'groupBy' constant
         case 'day':
           key = format(date, 'MMM dd, yyyy');
           sortDate = startOfDay(date);
@@ -304,7 +305,7 @@ export const generateActivityChartData = (
 export const generateDurationChartData = (
   transcripts: Transcript[],
   timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: 'day' | 'week' | 'month'
+  customGroupBy?: GroupBy
 ): ChartDataResponse => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
@@ -312,24 +313,7 @@ export const generateDurationChartData = (
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  let resolvedGroupBy = customGroupBy;
-  // Determine grouping based on time range if not specified
-  if (!resolvedGroupBy) {
-    switch (timeRange) {
-      case '7d':
-        resolvedGroupBy = 'day';
-        break;
-      case '30d':
-        resolvedGroupBy = 'day';
-        break;
-      case '90d':
-        resolvedGroupBy = 'week';
-        break;
-      case 'all':
-        resolvedGroupBy = 'month';
-        break;
-    }
-  }
+  const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
   // Group by time period and sum durations
   const groups: Record<string, { duration: number, sortDate: Date }> = {};
@@ -340,7 +324,7 @@ export const generateDurationChartData = (
       let key: string;
       let sortDate: Date;
 
-      switch (resolvedGroupBy) {
+      switch (groupBy) { // Use the new 'groupBy' constant
         case 'day':
           key = format(date, 'MMM dd, yyyy');
           sortDate = startOfDay(date);
@@ -470,7 +454,7 @@ export const getRecentActivity = (
 export const generateConversationDensityData = (
   transcripts: Transcript[],
   timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: 'day' | 'week' | 'month'
+  customGroupBy?: GroupBy
 ): ChartDataResponse => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
@@ -478,24 +462,7 @@ export const generateConversationDensityData = (
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  let resolvedGroupBy = customGroupBy;
-  // Determine grouping based on time range if not specified
-  if (!resolvedGroupBy) {
-    switch (timeRange) {
-      case '7d':
-        resolvedGroupBy = 'day';
-        break;
-      case '30d':
-        resolvedGroupBy = 'day';
-        break;
-      case '90d':
-        resolvedGroupBy = 'week';
-        break;
-      case 'all':
-        resolvedGroupBy = 'month';
-        break;
-    }
-  }
+  const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
   // Group by time period and calculate average conversation density
   const groups: Record<string, { totalWords: number; totalDuration: number; count: number; sortDate: Date }> = {};
@@ -506,7 +473,7 @@ export const generateConversationDensityData = (
       let key: string;
       let sortDate: Date;
 
-      switch (resolvedGroupBy) {
+      switch (groupBy) { // Use the new 'groupBy' constant
         case 'day':
           key = format(date, 'MMM dd, yyyy');
           sortDate = startOfDay(date);
@@ -625,7 +592,7 @@ export const generateHourlyActivityData = (
 export const generateSentimentTrendData = async (
   transcripts: Transcript[],
   timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: 'day' | 'week' | 'month'
+  customGroupBy?: GroupBy
 ): Promise<ChartDataResponse> => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
@@ -633,24 +600,7 @@ export const generateSentimentTrendData = async (
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  let resolvedGroupBy = customGroupBy;
-  // Determine grouping based on time range if not specified
-  if (!resolvedGroupBy) {
-    switch (timeRange) {
-      case '7d':
-        resolvedGroupBy = 'day';
-        break;
-      case '30d':
-        resolvedGroupBy = 'day';
-        break;
-      case '90d':
-        resolvedGroupBy = 'week';
-        break;
-      case 'all':
-        resolvedGroupBy = 'month';
-        break;
-    }
-  }
+  const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
   // Group by time period and calculate sentiment proxy
   const groups: Record<string, { positiveWords: number; totalWords: number; count: number; sortDate: Date; sentimentSum?: number }> = {};
@@ -818,7 +768,7 @@ export const generateSentimentTrendData = async (
       let key: string;
       let sortDate: Date;
 
-      switch (resolvedGroupBy) {
+      switch (groupBy) { // Use the new 'groupBy' constant
         case 'day': key = format(date, 'MMM dd, yyyy'); sortDate = startOfDay(date); break;
         case 'week': const weekStart = startOfWeek(date, { weekStartsOn: 1 }); key = format(weekStart, 'MMM dd, yyyy'); sortDate = weekStart; break;
         case 'month': key = format(date, 'MMM yyyy'); sortDate = startOfMonth(date); break;

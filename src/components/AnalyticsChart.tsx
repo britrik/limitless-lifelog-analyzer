@@ -16,7 +16,7 @@ interface AnalyticsChartProps {
 }
 
 export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
-  data,
+  chartResponse, // Correctly destructure chartResponse
   type,
   title,
   subtitle,
