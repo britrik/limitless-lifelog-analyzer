@@ -10,7 +10,7 @@ import { AnalyticsChart } from 'components/AnalyticsChart'; // Named import
 import { ActivityHeatmap } from 'components/ActivityHeatmap'; // Named import
 import RecentActivityList from 'components/RecentActivityList'; // Relative import (temporary unblock—adjust path if filename differs)
 
-import { fetchTranscripts } from 'services/apiService'; // Absolute import
+import { fetchTranscripts } from 'services/limitlessApi';  // Points to src/services/limitlessApi.ts
 
 // Aliases if AnalyticsChart handles multiple chart types (e.g., via props); adjust as needed
 // Example: If it needs <AnalyticsChart type="line" data={...} />, update usages below
