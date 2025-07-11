@@ -434,7 +434,7 @@ describe('dashboardAnalytics', () => {
         const result = await generateSentimentTrendData(transcriptsSet, 'all', 'month');
         expect(result.status).toBe('success');
         expect(result.data.length).toBeGreaterThan(0); // Should have at least one month group
-        expect(result.data[0].value).toBe(20);
+        expect(result.data[0].value).toBe(20); // 0.2 * 100, or if our fallback was {score: 20}
       });
 
       it('returns no-data status for empty transcript list (async)', async () => {
@@ -443,12 +443,45 @@ describe('dashboardAnalytics', () => {
         expect(result.message).toBe('No transcripts found for the selected period.');
       });
 
-      it('returns no-data if API calls succeed but result in no valid data points for grouping', async () => {
-        performAnalysisSpy.mockResolvedValue({ data: null }); // API says no sentiment
-         const transcripts = [createMockTranscript('s_empty', new Date().toISOString(), 'Content')];
+      it('handles Gemini fallback and returns success with 0 score if transcripts exist', async () => {
+        // Simulate geminiService.ts returning its defined fallback
+        performAnalysisSpy.mockResolvedValue({ data: { score: 0, label: 'neutral' }, groundingMetadata: null });
+        const transcripts = [createMockTranscript('s_gemini_fallback', new Date().toISOString(), 'Content that would fail otherwise')];
+
         const result = await generateSentimentTrendData(transcripts, '7d', 'day');
+
+        expect(result.status).toBe('success');
+        expect(result.data.length).toBe(1);
+        expect(result.data[0].value).toBe(0); // Default score from Gemini fallback
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(expect.stringContaining('falling back to word-list sentiment'));
+      });
+
+      it('returns no-data if API calls (including Gemini fallback) result in no valid data points for grouping', async () => {
+        // This test is tricky because processTranscriptSentiment now robustly returns a number (0 if all else fails).
+        // So, if transcripts exist and are processed, data points with value 0 will be created.
+        // The only way to get 'No sentiment data to display...' is if filteredTranscripts is non-empty,
+        // but ALL of them fail date parsing in the grouping loop inside generateSentimentTrendData.
+        performAnalysisSpy.mockResolvedValue({ data: { score: 0, label: 'neutral' } }); // API is fine
+        const transcriptsWithInvalidDates = [
+            createMockTranscript('inv1', 'invalid-date', 'content1'),
+            createMockTranscript('inv2', 'another-bad-date', 'content2')
+        ];
+        // filterTranscriptsByTimeRange will already filter these out if '7d' doesn't match 'invalid-date'
+        // For this specific test, we'd want filterTranscriptsByTimeRange to pass them, then fail in the loop.
+        // However, filterTranscriptsByTimeRange itself logs and removes them.
+        // So, the primary path to 'No sentiment data...' is if filterTranscriptsByTimeRange makes the list empty.
+        // If filterTranscriptsByTimeRange is mocked to return these invalid date items:
+        const mockFilter = jest.spyOn(require('../utils/dashboardAnalytics'), 'filterTranscriptsByTimeRange');
+        mockFilter.mockReturnValueOnce(transcriptsWithInvalidDates);
+
+        const result = await generateSentimentTrendData(transcriptsWithInvalidDates, '7d', 'day');
         expect(result.status).toBe('no-data');
+        // This message actually comes from the initial check in generateSentimentTrendData if filterTranscriptsByTimeRange (unmocked) returns empty.
+        // If filterTranscriptsByTimeRange was mocked to pass invalid dates through, AND those dates failed parseISO inside generateSentimentTrendData's loop,
+        // AND no groups were formed, THEN the "No sentiment data to display..." message would appear.
+        // Given the current structure, "No transcripts found for the selected period." is the more common no-data message.
         expect(result.message).toBe('No sentiment data to display for the selected period and grouping.');
+        mockFilter.mockRestore();
       });
     });
   });

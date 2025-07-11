@@ -271,7 +271,7 @@ export const generateActivityChartData = (
   });
 
   // Convert to chart data and sort by date
-  return Object.entries(groups)
+  const chartDataPoints = Object.entries(groups)
     .map(([dateLabel, { transcripts, sortDate }]) => ({
       date: dateLabel,
       value: transcripts.length,
@@ -284,11 +284,9 @@ export const generateActivityChartData = (
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
 
-  if (chartDataPoints.length === 0) {
-    // This specific message is for generateActivityChartData
-    return { data: [], status: 'no-data', message: 'No activity data to display for the selected period and grouping.' };
-  }
-  return { data: chartDataPoints, status: 'success' }; // message is optional
+  const status = chartDataPoints.length ? 'success' : 'no-data';
+  const message = status === 'no-data' ? 'No activity data to display for the selected period and grouping.' : undefined;
+  return { data: chartDataPoints, status, message };
 };
 
 // Generate duration chart data
@@ -345,21 +343,24 @@ export const generateDurationChartData = (
   });
 
   const chartDataPointsResult = Object.entries(groups)
-    .map(([dateLabel, { duration, sortDate }]) => ({
-      date: dateLabel,
-      value: Math.round(duration * 10) / 10, // Round to 1 decimal place
-      label: `${Math.round(duration * 10) / 10} hours`,
-    }))
+    .map(([dateLabel, { duration, sortDate }]) => {
+      const numericValue = Number(duration); // Ensure duration is treated as a number
+      const value = isNaN(numericValue) ? 0 : Math.round(numericValue * 10) / 10;
+      return {
+        date: dateLabel,
+        value: value,
+        label: `${value} hours`,
+      };
+    })
     .sort((a, b) => {
       const aGroup = groups[a.date];
       const bGroup = groups[b.date];
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
 
-  if (chartDataPointsResult.length === 0) { // Renamed to avoid conflict with other chartDataPoints variables if any
-    return { data: [], status: 'no-data', message: 'No duration data to display for the selected period and grouping.' };
-  }
-  return { data: chartDataPointsResult, status: 'success' }; // message is optional
+  const status = chartDataPointsResult.length ? 'success' : 'no-data';
+  const message = status === 'no-data' ? 'No duration data to display for the selected period and grouping.' : undefined;
+  return { data: chartDataPointsResult, status, message };
 };
 
 // Get recent activity items
@@ -498,21 +499,26 @@ export const generateConversationDensityData = (
   });
 
   const chartDataPointsResult = Object.entries(groups)
-    .map(([dateLabel, data]) => ({
-      date: dateLabel,
-      value: Math.round((data.totalWords / data.totalDuration) * 10) / 10, // Words per minute, rounded
-      label: `${Math.round((data.totalWords / data.totalDuration) * 10) / 10} WPM`,
-    }))
+    .map(([dateLabel, data]) => {
+      const WPM = (data.totalDuration > 0 && typeof data.totalWords === 'number' && !isNaN(data.totalWords))
+                   ? (data.totalWords / data.totalDuration)
+                   : 0;
+      const value = isNaN(WPM) ? 0 : Math.round(WPM * 10) / 10;
+      return {
+        date: dateLabel,
+        value: value,
+        label: `${value} WPM`,
+      };
+    })
     .sort((a, b) => {
       const aGroup = groups[a.date];
       const bGroup = groups[b.date];
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
 
-  if (chartDataPointsResult.length === 0) { // Renamed to avoid conflict
-    return { data: [], status: 'no-data', message: 'No conversation density data to display for the selected period and grouping.' };
-  }
-  return { data: chartDataPointsResult, status: 'success' }; // message is optional
+  const status = chartDataPointsResult.length ? 'success' : 'no-data';
+  const message = status === 'no-data' ? 'No conversation density data to display for the selected period and grouping.' : undefined;
+  return { data: chartDataPointsResult, status, message };
 };
 
 // Generate hourly activity pattern data
@@ -602,59 +608,38 @@ export const generateSentimentTrendData = async (
   // Use an async IIFE to handle promises within the synchronous function structure if needed,
   // or refactor parent functions to be async. For now, let's assume direct async processing.
   // This function will need to become async.
-  const processTranscriptSentiment = async (transcript: Transcript): Promise<number | null> => {
+  const processTranscriptSentiment = async (transcript: Transcript): Promise<number> => {
     if (sentimentCache.has(transcript.id)) {
-      return sentimentCache.get(transcript.id) as number | null;
+      // Ensure cached value is not null before returning, default to 0 if it is (though cache should store numbers)
+      return sentimentCache.get(transcript.id) ?? 0;
     }
+
+    let score = 0; // Default score to 0
 
     try {
       const analysisResult = await performAnalysis(transcript.content, AnalysisType.SENTIMENT);
-      // Assuming analysisResult.data directly contains or can be parsed to a numerical sentiment score.
-      // This part needs clarification based on actual Gemini API response for sentiment.
-      // For now, let's assume it's a number between -100 and 100.
-      // If it's a string like "Positive", "Negative", "Neutral", we need to map it.
-      // Example: if (typeof analysisResult.data === 'string') score = mapSentimentStringToScore(analysisResult.data)
-      // else if (typeof analysisResult.data.score === 'number') score = analysisResult.data.score * 100;
-      let score: number | null = null;
-      if (typeof analysisResult.data === 'number') {
-        score = analysisResult.data; // Assuming it's already in a comparable range
-      } else if (typeof analysisResult.data?.score === 'number') {
-        score = analysisResult.data.score * 100; // Example if score is -1 to 1
-      } else if (typeof analysisResult.data === 'string') {
-        // Basic mapping for string results; this needs to be robust
-        const sentimentLower = analysisResult.data.toLowerCase();
-        if (sentimentLower === 'positive') score = 75;
-        else if (sentimentLower === 'negative') score = -75;
-        else if (sentimentLower === 'neutral') score = 0;
-        else { // Try to parse if it's a number string
-            const parsedScore = parseFloat(analysisResult.data);
-            if (!isNaN(parsedScore)) score = Math.max(-100, Math.min(100, parsedScore));
-        }
-      }
 
-      if (score !== null && !isNaN(score)) {
-        sentimentCache.set(transcript.id, score);
-        return score;
+      // Expect analysisResult.data to be { score: number, label: string } from geminiService fallback or actual API
+      if (analysisResult.data && typeof analysisResult.data.score === 'number') {
+        score = analysisResult.data.score;
       } else {
-        console.warn(`Gemini sentiment analysis for transcript ${transcript.id} returned unexpected data:`, analysisResult.data);
-        // Fall through to fallback if API data is not usable
+        // This case should be rare if geminiService.ts handles its fallbacks correctly for SENTIMENT.
+        // This acts as a secondary fallback or if the structure from Gemini is unexpectedly different.
+        console.warn(`Sentiment data for transcript ${transcript.id} not in expected {score, label} format. Data: `, analysisResult.data, ` Using default score 0.`);
+        // No word-list fallback here as per reclarified request; geminiService provides the primary fallback.
+        // If geminiService guarantees {score:0, label:'neutral'}, this 'else' might only catch truly bizarre API responses.
       }
     } catch (error) {
-      console.warn(`Gemini sentiment analysis failed for transcript ${transcript.id}: ${error}. Falling back to word list.`, error);
+      // This catch block is if performAnalysis itself throws an error, which it shouldn't for SENTIMENT type
+      // due to changes in geminiService.ts. Included for robustness.
+      console.error(`Error processing sentiment for transcript ${transcript.id}: ${error}. Defaulting score to 0.`);
+      // Score remains 0 as initialized
     }
 
-    // Fallback to word-list logic
-    const content = transcript.content.toLowerCase();
-    const positiveCount = positiveWordsList.reduce((count, word) =>
-      count + (content.match(new RegExp(`\\b${word}\\b`, 'g')) || []).length, 0); // Use word boundaries
-    const negativeCount = negativeWordsList.reduce((count, word) =>
-      count + (content.match(new RegExp(`\\b${word}\\b`, 'g')) || []).length, 0); // Use word boundaries
-    const totalWords = Math.max(1, Math.round(transcript.content.length / 5)); // Avoid division by zero
-
-    const fallbackScore = totalWords > 0 ? ((positiveCount - negativeCount) / totalWords) * 100 : 0;
-    const normalizedFallbackScore = Math.max(-100, Math.min(100, fallbackScore)); // Normalize to -100 to 100
-    sentimentCache.set(transcript.id, normalizedFallbackScore);
-    return normalizedFallbackScore;
+    // Ensure score is a valid number and within bounds, default to 0 if NaN
+    const finalScore = (!isNaN(score) && score !== null) ? Math.max(-100, Math.min(100, score)) : 0;
+    sentimentCache.set(transcript.id, finalScore);
+    return finalScore;
   };
 
   // This function needs to be async due to processTranscriptSentiment
@@ -803,8 +788,7 @@ export const generateSentimentTrendData = async (
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
 
-  if (chartDataPoints.length === 0) {
-    return { data: [], status: 'no-data', message: 'No sentiment data to display for the selected period and grouping.' };
-  }
-  return { data: chartDataPoints, status: 'success' };
+  const status = chartDataPoints.length ? 'success' : 'no-data';
+  const message = status === 'no-data' ? 'No sentiment data to display for the selected period and grouping.' : undefined;
+  return { data: chartDataPoints, status, message };
 };

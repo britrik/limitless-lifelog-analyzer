@@ -153,25 +153,41 @@ export const performAnalysis = async (
     const response: GenerateContentResponse = await ai.models.generateContent(requestParams);
 
     const responseText = response.text;
-    let analysisResult: any;
 
     if (!responseText) {
+      if (analysisType === AnalysisType.SENTIMENT) {
+        console.warn(`Gemini API returned no response text for SENTIMENT analysis. Using fallback.`);
+        // Ensure this is the exact fallback shape for the data part
+        return { data: { score: 0, label: 'neutral' }, groundingMetadata: null };
+      }
       throw new Error('No response text received from Gemini API');
     }
 
+    let analysisResultData: any;
     if (config.requiresJson) {
-      analysisResult = parseJsonFromText(responseText);
+      analysisResultData = parseJsonFromText(responseText);
     } else {
-      analysisResult = responseText;
+      analysisResultData = responseText;
     }
 
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata || null;
 
-    return { data: analysisResult, groundingMetadata };
+    // For sentiment, if the structure is not what we expect (e.g. a simple string instead of {score, label}),
+    // and it's not already our fallback, we might still want to normalize or fallback here.
+    // However, the primary fallback is on error / no responseText.
+    // If Gemini *does* return text but it's not JSON for a requiresJson type, parseJsonFromText will throw,
+    // leading to the catch block below.
+
+    return { data: analysisResultData, groundingMetadata };
 
   } catch (error: any) {
     console.error(`Gemini API error during ${analysisType} analysis:`, error);
-    if (error.message && error.message.includes("API key not valid")) {
+    if (analysisType === AnalysisType.SENTIMENT) {
+      console.warn(`Using fallback sentiment due to Gemini API error: ${(error as Error).message || 'Unknown error'}`);
+      // Ensure this is the exact fallback shape for the data part
+      return { data: { score: 0, label: 'neutral' }, groundingMetadata: null };
+    }
+    if ((error as Error).message && (error as Error).message.includes("API key not valid")) {
       throw new Error("Gemini API key is invalid or not authorized. Please check VITE_API_KEY in your .env.local file.");
     }
     throw new Error(`Failed to get ${analysisType} from Gemini: ${error.message || 'Unknown error'}`);

@@ -44,28 +44,26 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   const renderChart = React.useMemo(() => {
     // console.log(`AnalyticsChart: Memoizing chart render for: ${title}, GroupBy: ${selectedGroupBy}, Status: ${status}`); // For debugging
 
-    if (status === 'loading') { // Added a loading state check
+    if (status !== 'success') {
+      let displayMessage = message;
+      if (!displayMessage) {
+        if (status === 'loading') displayMessage = 'Loading chart data...';
+        else if (status === 'no-data') displayMessage = 'No data available for this chart.';
+        else if (status === 'error') displayMessage = 'An error occurred while loading chart data.';
+        else displayMessage = 'Chart data is currently unavailable.'; // Generic fallback
+      }
       return (
-        <div className="flex items-center justify-center h-full text-slate-400">
-          Loading chart data...
+        <div className="flex items-center justify-center h-full text-slate-400 px-4 text-center">
+          {displayMessage}
         </div>
       );
     }
 
-    if (status === 'no-data' || status === 'error') {
+    // If status is 'success' but data is empty (should ideally be caught by 'no-data' status from generator)
+    if (safeChartData.length === 0) {
       return (
         <div className="flex items-center justify-center h-full text-slate-400 px-4 text-center">
-          {message || (status === 'no-data' ? 'No data available.' : 'An error occurred.')}
-        </div>
-      );
-    }
-
-    // Only proceed to render chart if status is 'success'
-    if (status !== 'success' || safeChartData.length === 0) { // Use safeChartData
-       // Fallback for safety, though 'no-data' status should catch empty data.
-      return (
-        <div className="flex items-center justify-center h-full text-slate-400 px-4 text-center">
-           No data to display.
+          No data points to display for this chart.
         </div>
       );
     }
