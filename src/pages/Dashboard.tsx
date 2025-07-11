@@ -8,7 +8,7 @@ import { Transcript } from 'types'; // Absolute import (adjust if types.ts is no
 import MetricCard from 'components/MetricCard'; // Default import (matches your file)
 import { AnalyticsChart } from 'components/AnalyticsChart'; // Named import
 import { ActivityHeatmap } from 'components/ActivityHeatmap'; // Named import
-import RecentActivityList from 'components/RecentActivityList'; // Default import (try this if named didn't work)
+import RecentActivityList from '../components/RecentActivityList'; // Relative import (temporary unblock—adjust path if filename differs)
 
 import { fetchTranscripts } from 'services/apiService'; // Absolute import
 
