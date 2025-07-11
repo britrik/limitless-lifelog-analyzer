@@ -285,20 +285,10 @@ export const generateActivityChartData = (
     });
 
   if (chartDataPoints.length === 0) {
-    return { data: [], status: 'no-data', message: 'No sentiment data to display for the selected period and grouping.' };
-  }
-  return { data: chartDataPoints, status: 'success' };
-
-  // This was the incorrectly duplicated block. The correct one is below.
-  // if (chartData.length === 0) {
-  // return { data: [], status: 'no-data', message: 'No duration data to display for the selected period and grouping.' };
-  // }
-  // return { data: chartData, status: 'success' };
-
-  if (chartData.length === 0) {
+    // This specific message is for generateActivityChartData
     return { data: [], status: 'no-data', message: 'No activity data to display for the selected period and grouping.' };
   }
-  return { data: chartData, status: 'success' };
+  return { data: chartDataPoints, status: 'success' }; // message is optional
 };
 
 // Generate duration chart data
@@ -354,7 +344,7 @@ export const generateDurationChartData = (
     }
   });
 
-  return Object.entries(groups)
+  const chartDataPointsResult = Object.entries(groups)
     .map(([dateLabel, { duration, sortDate }]) => ({
       date: dateLabel,
       value: Math.round(duration * 10) / 10, // Round to 1 decimal place
@@ -366,10 +356,10 @@ export const generateDurationChartData = (
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
 
-  if (chartDataPoints.length === 0) {
+  if (chartDataPointsResult.length === 0) { // Renamed to avoid conflict with other chartDataPoints variables if any
     return { data: [], status: 'no-data', message: 'No duration data to display for the selected period and grouping.' };
   }
-  return { data: chartDataPoints, status: 'success' };
+  return { data: chartDataPointsResult, status: 'success' }; // message is optional
 };
 
 // Get recent activity items
@@ -507,7 +497,7 @@ export const generateConversationDensityData = (
     }
   });
 
-  return Object.entries(groups)
+  const chartDataPointsResult = Object.entries(groups)
     .map(([dateLabel, data]) => ({
       date: dateLabel,
       value: Math.round((data.totalWords / data.totalDuration) * 10) / 10, // Words per minute, rounded
@@ -519,10 +509,10 @@ export const generateConversationDensityData = (
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
 
-  if (chartDataPoints.length === 0) {
+  if (chartDataPointsResult.length === 0) { // Renamed to avoid conflict
     return { data: [], status: 'no-data', message: 'No conversation density data to display for the selected period and grouping.' };
   }
-  return { data: chartDataPoints, status: 'success' };
+  return { data: chartDataPointsResult, status: 'success' }; // message is optional
 };
 
 // Generate hourly activity pattern data
