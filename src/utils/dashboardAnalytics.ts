@@ -237,28 +237,40 @@ export const generateActivityChartData = (
   const groups: Record<string, { transcripts: Transcript[], sortDate: Date }> = {};
 
   filteredTranscripts.forEach(transcript => {
+    let dateObj;
     try {
-      const date = parseISO(transcript.date);
+      dateObj = parseISO(transcript.date);
+      if (isNaN(dateObj.getTime())) {
+        console.warn(`Skipping transcript ${transcript.id} in generateActivityChartData: invalid date ${transcript.date}`);
+        return; // Skips this iteration of forEach
+      }
+    } catch (e) {
+      console.warn(`Skipping transcript ${transcript.id} in generateActivityChartData: error parsing date ${transcript.date}`, e);
+      return; // Skips this iteration of forEach
+    }
+
+    try {
+      // const date = parseISO(transcript.date); // Already parsed to dateObj
       let key: string;
       let sortDate: Date;
 
       switch (groupBy) { // Use the new 'groupBy' constant
         case 'day':
-          key = format(date, 'MMM dd, yyyy');
-          sortDate = startOfDay(date);
+          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
+          sortDate = startOfDay(dateObj);      // Use dateObj
           break;
         case 'week':
-          const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // Monday start
+          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
           key = format(weekStart, 'MMM dd, yyyy');
           sortDate = weekStart;
           break;
         case 'month':
-          key = format(date, 'MMM yyyy');
-          sortDate = startOfMonth(date);
+          key = format(dateObj, 'MMM yyyy');    // Use dateObj
+          sortDate = startOfMonth(dateObj);   // Use dateObj
           break;
         default:
-          key = format(date, 'MMM dd, yyyy');
-          sortDate = startOfDay(date);
+          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
+          sortDate = startOfDay(dateObj);      // Use dateObj
       }
 
       if (!groups[key]) {
@@ -307,28 +319,40 @@ export const generateDurationChartData = (
   const groups: Record<string, { duration: number, sortDate: Date }> = {};
 
   filteredTranscripts.forEach(transcript => {
+    let dateObj;
     try {
-      const date = parseISO(transcript.date);
+      dateObj = parseISO(transcript.date);
+      if (isNaN(dateObj.getTime())) {
+        console.warn(`Skipping transcript ${transcript.id} in generateDurationChartData: invalid date ${transcript.date}`);
+        return;
+      }
+    } catch (e) {
+      console.warn(`Skipping transcript ${transcript.id} in generateDurationChartData: error parsing date ${transcript.date}`, e);
+      return;
+    }
+
+    try {
+      // const date = parseISO(transcript.date); // Already parsed to dateObj
       let key: string;
       let sortDate: Date;
 
       switch (groupBy) { // Use the new 'groupBy' constant
         case 'day':
-          key = format(date, 'MMM dd, yyyy');
-          sortDate = startOfDay(date);
+          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
+          sortDate = startOfDay(dateObj);      // Use dateObj
           break;
         case 'week':
-          const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
           key = format(weekStart, 'MMM dd, yyyy');
           sortDate = weekStart;
           break;
         case 'month':
-          key = format(date, 'MMM yyyy');
-          sortDate = startOfMonth(date);
+          key = format(dateObj, 'MMM yyyy');    // Use dateObj
+          sortDate = startOfMonth(dateObj);   // Use dateObj
           break;
         default:
-          key = format(date, 'MMM dd, yyyy');
-          sortDate = startOfDay(date);
+          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
+          sortDate = startOfDay(dateObj);      // Use dateObj
       }
 
       const duration = estimateDuration(transcript);
@@ -459,24 +483,36 @@ export const generateConversationDensityData = (
   const groups: Record<string, { totalWords: number; totalDuration: number; count: number; sortDate: Date }> = {};
 
   filteredTranscripts.forEach(transcript => {
+    let dateObj;
     try {
-      const date = parseISO(transcript.date);
+      dateObj = parseISO(transcript.date);
+      if (isNaN(dateObj.getTime())) {
+        console.warn(`Skipping transcript ${transcript.id} in generateConversationDensityData: invalid date ${transcript.date}`);
+        return;
+      }
+    } catch (e) {
+      console.warn(`Skipping transcript ${transcript.id} in generateConversationDensityData: error parsing date ${transcript.date}`, e);
+      return;
+    }
+
+    try {
+      // const date = parseISO(transcript.date); // Already parsed to dateObj
       let key: string;
       let sortDate: Date;
 
       switch (groupBy) { // Use the new 'groupBy' constant
         case 'day':
-          key = format(date, 'MMM dd, yyyy');
-          sortDate = startOfDay(date);
+          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
+          sortDate = startOfDay(dateObj);      // Use dateObj
           break;
         case 'week':
-          const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
           key = format(weekStart, 'MMM dd, yyyy');
           sortDate = weekStart;
           break;
         case 'month':
-          key = format(date, 'MMM yyyy');
-          sortDate = startOfMonth(date);
+          key = format(dateObj, 'MMM yyyy');    // Use dateObj
+          sortDate = startOfMonth(dateObj);   // Use dateObj
           break;
       }
 
@@ -623,11 +659,13 @@ export const generateSentimentTrendData = async (
       if (analysisResult.data && typeof analysisResult.data.score === 'number') {
         score = analysisResult.data.score;
       } else {
-        // This case should be rare if geminiService.ts handles its fallbacks correctly for SENTIMENT.
-        // This acts as a secondary fallback or if the structure from Gemini is unexpectedly different.
-        console.warn(`Sentiment data for transcript ${transcript.id} not in expected {score, label} format. Data: `, analysisResult.data, ` Using default score 0.`);
-        // No word-list fallback here as per reclarified request; geminiService provides the primary fallback.
-        // If geminiService guarantees {score:0, label:'neutral'}, this 'else' might only catch truly bizarre API responses.
+        // Data from performAnalysis is not in the expected { score: number } shape.
+        // geminiService.ts should have provided a { score: 0, label: 'neutral' } fallback for API errors.
+        // This path means either Gemini returned an unexpected successful response shape,
+        // or an error occurred that wasn't caught and handled by geminiService's sentiment fallback.
+        // Defaulting to score 0. The warning is removed as requested.
+        // console.warn(`Sentiment data for transcript ${transcript.id} not in expected {score, label} format. Data: `, analysisResult.data, ` Using default score 0.`);
+        // Score remains 0 as initialized
       }
     } catch (error) {
       // This catch block is if performAnalysis itself throws an error, which it shouldn't for SENTIMENT type
@@ -645,32 +683,40 @@ export const generateSentimentTrendData = async (
   // This function needs to be async due to processTranscriptSentiment
   // We'll collect all promises and then process them.
   const promises = filteredTranscripts.map(async transcript => {
+    let dateObj;
     try {
-      const date = parseISO(transcript.date);
-      if (isNaN(date.getTime())) {
-        console.warn(`Skipping transcript with invalid date in sentiment processing: ${transcript.id}`);
-        return null; // Skip if date is invalid
+      dateObj = parseISO(transcript.date);
+      if (isNaN(dateObj.getTime())) {
+        console.warn(`Skipping transcript ${transcript.id} in generateSentimentTrendData: invalid date ${transcript.date}`);
+        return null; // This will be filtered out later
       }
+    } catch (e) {
+      console.warn(`Skipping transcript ${transcript.id} in generateSentimentTrendData: error parsing date ${transcript.date}`, e);
+      return null; // This will be filtered out later
+    }
+
+    try {
+      // const date = parseISO(transcript.date); // Already parsed to dateObj
       let key: string;
       let sortDate: Date;
 
       switch (groupBy) {
         case 'day':
-          key = format(date, 'MMM dd, yyyy');
-          sortDate = startOfDay(date);
+          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
+          sortDate = startOfDay(dateObj);      // Use dateObj
           break;
         case 'week':
-          const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
           key = format(weekStart, 'MMM dd, yyyy');
           sortDate = weekStart;
           break;
         case 'month':
-          key = format(date, 'MMM yyyy');
-          sortDate = startOfMonth(date);
+          key = format(dateObj, 'MMM yyyy');    // Use dateObj
+          sortDate = startOfMonth(dateObj);   // Use dateObj
           break;
         default: // Should not happen with current types, but good for safety
-          key = format(date, 'MMM dd, yyyy');
-          sortDate = startOfDay(date);
+          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
+          sortDate = startOfDay(dateObj);      // Use dateObj
           break;
       }
 
@@ -733,39 +779,25 @@ export const generateSentimentTrendData = async (
   // Rewriting the loop part to be more direct if we assume it's made async.
   // This will be part of an async function.
   // Removed IIFE, directly using await in the async function
-  for (const transcript of filteredTranscripts) {
-    try {
-      const date = parseISO(transcript.date);
-      if (isNaN(date.getTime())) {
-          console.warn(`Skipping transcript with invalid date in sentiment processing: ${transcript.id}`);
-          continue;
-      }
-      let key: string;
-      let sortDate: Date;
 
-      switch (groupBy) { // Use the new 'groupBy' constant
-        case 'day': key = format(date, 'MMM dd, yyyy'); sortDate = startOfDay(date); break;
-        case 'week': const weekStart = startOfWeek(date, { weekStartsOn: 1 }); key = format(weekStart, 'MMM dd, yyyy'); sortDate = weekStart; break;
-        case 'month': key = format(date, 'MMM yyyy'); sortDate = startOfMonth(date); break;
-        default: key = format(date, 'MMM dd, yyyy'); sortDate = startOfDay(date); break;
-      }
+  // Resolve all promises and filter out nulls (from date parsing errors)
+  const resolvedPromiseData = (await Promise.all(promises)).filter(p => p !== null) as { key: string; sortDate: Date; sentimentScore: number; }[];
 
-      const sentimentScore = await processTranscriptSentiment(transcript);
-      if (sentimentScore === null) continue;
+  if (resolvedPromiseData.length === 0 && filteredTranscripts.length > 0) {
+    // This means all transcripts had date parsing issues if filteredTranscripts was not initially empty
+    return { data: [], status: 'no-data', message: 'No sentiment data to display due to date parsing issues in all relevant transcripts.' };
+  }
 
-      if (!groups[key]) {
-        // Storing sum of scores and count to average later
-        // Initialize with correct type for sentimentSum
-        groups[key] = { positiveWords: 0, totalWords: 0, count: 0, sortDate, sentimentSum: 0 };
-      }
+  // Process valid results
+  for (const item of resolvedPromiseData) {
+    if (!item) continue; // Should be redundant due to filter above, but for safety
+    const { key, sortDate, sentimentScore } = item;
 
-      // Let's adapt to store sum of scores directly.
-      groups[key].sentimentSum! += sentimentScore; // Using non-null assertion as it's initialized
-      groups[key].count += 1;
-      // totalWords from the original structure is not directly used for averaging sentiment scores here
-    } catch (error) {
-      console.warn(`Skipping transcript ${transcript.id} due to error during sentiment processing loop: ${error}`);
+    if (!groups[key]) {
+      groups[key] = { positiveWords: 0, totalWords: 0, count: 0, sortDate, sentimentSum: 0 };
     }
+    groups[key].sentimentSum! += sentimentScore;
+    groups[key].count += 1;
   }
 
   // The function `generateSentimentTrendData` MUST be `async`.

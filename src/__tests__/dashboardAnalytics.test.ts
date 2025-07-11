@@ -418,6 +418,26 @@ describe('dashboardAnalytics', () => {
         // The internal 'No activity data to display...' is hard to hit if the first filter is effective.
         // For now, this is sufficient.
       });
+
+      it('skips transcripts with malformed dates during grouping and processes valid ones for generateActivityChartData', () => {
+        const today = new Date();
+        const yesterday = new Date(new Date().setDate(today.getDate() -1));
+
+        const transcriptsWithMixedDates: Transcript[] = [
+          createMockTranscript('actValid1', today.toISOString(), 'Valid content 1 for activity'),
+          createMockTranscript('actInvalid1', 'this-is-not-a-date-activity', 'Content for invalid date activity'),
+          createMockTranscript('actValid2', yesterday.toISOString(), 'Valid content 2 for activity'),
+        ];
+
+        consoleWarnSpy.mockClear();
+        const result = generateActivityChartData(transcriptsWithMixedDates, 'all', 'day');
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping transcript actInvalid1 in generateActivityChartData: invalid date this-is-not-a-date-activity'));
+
+        expect(result.status).toBe('success');
+        expect(result.data.length).toBe(2);
+        result.data.forEach(dp => expect(dp.value).toBe(1));
+      });
     });
 
     // Similar tests for generateDurationChartData, generateConversationDensityData, generateSentimentTrendData
@@ -483,6 +503,37 @@ describe('dashboardAnalytics', () => {
         expect(result.message).toBe('No sentiment data to display for the selected period and grouping.');
         mockFilter.mockRestore();
       });
+
+      it('uses default grouping when customGroupBy is undefined and produces success', async () => {
+        performAnalysisSpy.mockResolvedValue({ data: { score: 0.5, label: 'positive' } }); // 0.5 from API
+        const transcripts = [
+          createMockTranscript('s_default_group', new Date().toISOString(), 'Content for default grouping'),
+        ];
+        // Pass undefined explicitly for customGroupBy
+        const result = await generateSentimentTrendData(transcripts, '7d', undefined);
+        expect(result.status).toBe('success');
+        expect(result.data.length).toBe(1);
+        // processTranscriptSentiment uses the score directly if it's from {score, label}
+        // and then clamps it. So 0.5 remains 0.5.
+        expect(result.data[0].value).toBe(0.5);
+      });
+
+      it('skips transcripts with malformed dates during grouping and processes valid ones for generateSentimentTrendData', async () => {
+        const today = new Date();
+        performAnalysisSpy.mockResolvedValue({ data: { score: 10, label: 'positive' } }); // Arbitrary positive score
+
+        const transcripts: Transcript[] = [
+          createMockTranscript('sentValid1', today.toISOString(), 'sent_valid1_content'),
+          createMockTranscript('sentInvalid1', 'bad-date-sent', 'sent_invalid_content'),
+        ];
+        consoleWarnSpy.mockClear();
+        const result = await generateSentimentTrendData(transcripts, 'all', 'day');
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping transcript sentInvalid1 in generateSentimentTrendData: invalid date bad-date-sent'));
+        expect(result.status).toBe('success');
+        expect(result.data.length).toBe(1); // Only the valid one
+        expect(result.data[0].value).toBe(10);
+      });
     });
   });
 
@@ -533,6 +584,53 @@ describe('dashboardAnalytics', () => {
          // This will actually be 'No transcripts found...' because filterTranscriptsByTimeRange will make it empty.
         // To truly test the second message, one would need to mock filterTranscriptsByTimeRange or pass data that bypasses its date check but fails later.
         // The most reliable "no-data" test is when filterTranscriptsByTimeRange yields empty.
+    });
+
+    it('skips transcripts with malformed dates during grouping and processes valid ones for generateDurationChartData', () => {
+      const today = new Date();
+      const yesterday = new Date(new Date().setDate(today.getDate() -1));
+      const validStartTimeToday = new Date(today.getTime() - 3600000).toISOString(); // 1 hour ago
+      const validStartTimeYesterday = new Date(yesterday.getTime() - 3600000).toISOString(); // 1 hour ago yesterday
+
+      const transcripts: Transcript[] = [
+        createMockTranscript('durValid1', today.toISOString(), 'dur_valid1_content', { startTime: validStartTimeToday, endTime: today.toISOString() }),
+        createMockTranscript('durInvalid1', 'bad-date-duration', 'dur_invalid_content'),
+        createMockTranscript('durValid2', yesterday.toISOString(), 'dur_valid2_content', { startTime: validStartTimeYesterday, endTime: yesterday.toISOString() }),
+      ];
+      consoleWarnSpy.mockClear();
+      const result = generateDurationChartData(transcripts, 'all', 'day');
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping transcript durInvalid1 in generateDurationChartData: invalid date bad-date-duration'));
+      expect(result.status).toBe('success');
+      expect(result.data.length).toBe(2);
+      result.data.forEach(dp => expect(dp.value).toBeCloseTo(1)); // Each valid one was 1 hour
+    });
+  });
+
+  describe('generateConversationDensityData', () => {
+    it('skips transcripts with malformed dates during grouping and processes valid ones', () => {
+      const today = new Date();
+      const yesterday = new Date(new Date().setDate(today.getDate() -1));
+      const validStartTimeToday = new Date(today.getTime() - 3600000).toISOString();
+      const validStartTimeYesterday = new Date(yesterday.getTime() - 3600000).toISOString();
+
+      const transcripts: Transcript[] = [
+        createMockTranscript('cdValid1', today.toISOString(), 'word '.repeat(150), { startTime: validStartTimeToday, endTime: today.toISOString() }), // 150 words, 1hr = 60min => 2.5 WPM
+        createMockTranscript('cdInvalid1', 'bad-date-cd', 'cd_invalid_content'),
+        createMockTranscript('cdValid2', yesterday.toISOString(), 'word '.repeat(300), { startTime: validStartTimeYesterday, endTime: yesterday.toISOString() }), // 300 words, 1hr = 60min => 5 WPM
+      ];
+      consoleWarnSpy.mockClear();
+      const result = generateConversationDensityData(transcripts, 'all', 'day');
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping transcript cdInvalid1 in generateConversationDensityData: invalid date bad-date-cd'));
+      expect(result.status).toBe('success');
+      expect(result.data.length).toBe(2);
+      // Check for expected WPM values (approx)
+      const todayData = result.data.find(d => d.date.includes(today.getFullYear().toString()) && d.date.startsWith(new Intl.DateTimeFormat('en-US', { month: 'short' }).format(today)));
+      const yesterdayData = result.data.find(d => d.date.includes(yesterday.getFullYear().toString()) && d.date.startsWith(new Intl.DateTimeFormat('en-US', { month: 'short' }).format(yesterday)));
+
+      expect(todayData?.value).toBeCloseTo(2.5); // 150 words / 60 minutes
+      expect(yesterdayData?.value).toBeCloseTo(5.0); // 300 words / 60 minutes
+
     });
   });
 });

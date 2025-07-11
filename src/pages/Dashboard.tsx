@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { fetchTranscripts } from '../services/limitlessApi';
 import { Transcript, ChartDataResponse } from '../types'; // Added ChartDataResponse
 import { AnalyticsChart } from '../components/AnalyticsChart'; // ChartDataPoint is no longer exported here
@@ -270,11 +271,21 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Recordings */}
-        <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-xl rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between">
+      <ErrorBoundary
+        fallbackRender={({ error }) => (
+          <div role="alert" className="rounded-xl bg-red-900/30 p-6 text-center border border-red-700">
+            <p className="text-red-400 font-semibold">Something went wrong rendering the dashboard sections:</p>
+            <pre className="mt-2 text-xs text-red-300 whitespace-pre-wrap">{error.message}</pre>
+            <p className="mt-2 text-slate-400 text-sm">Try refreshing the page or selecting a different time range.</p>
+          </div>
+        )}
+        // onError={(error, info) => console.error("ErrorBoundary caught an error:", error, info)} // Optional: for logging
+      >
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Total Recordings */}
+          <div className="bg-slate-800 bg-opacity-70 backdrop-blur-md shadow-xl rounded-xl p-6 border border-slate-700">
+            <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-400 text-sm font-medium">Total Recordings</p>
               <p className="text-2xl font-bold text-white">{metrics.totalRecordings}</p>
@@ -510,6 +521,7 @@ export const Dashboard: React.FC = () => {
           </button>
         </div>
       </div>
+    </ErrorBoundary>
     </div>
   );
 };
