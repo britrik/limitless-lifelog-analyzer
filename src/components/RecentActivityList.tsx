@@ -12,7 +12,7 @@ interface RecentActivityListProps {
   items: RecentActivityItem[];
 }
 
-const RecentActivityList: React.FC<RecentActivityListProps> = ({ items }) => {
+export const RecentActivityList: React.FC<RecentActivityListProps> = ({ items }) => {
   if (items.length === 0) {
     return <Typography>No recent activity</Typography>;
   }
@@ -27,5 +27,3 @@ const RecentActivityList: React.FC<RecentActivityListProps> = ({ items }) => {
     </List>
   );
 };
-
-export default RecentActivityList;

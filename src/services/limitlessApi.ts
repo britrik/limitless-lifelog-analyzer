@@ -167,10 +167,14 @@ export const fetchTranscripts = async (
   } catch (error: any) {
     console.error('Error fetching lifelogs from Limitless API:', error);
     if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
+      let devMessage = '';
+      if (import.meta.env.DEV) {
+        devMessage = 'In development, this might also indicate a proxy configuration issue in `vite.config.ts`. ';
+      }
       throw new Error(
-        'Failed to fetch lifelogs. This could be due to a network connectivity issue or a CORS (Cross-Origin Resource Sharing) policy blocking the request. ' +
-        'Please check your internet connection and the browser\'s developer console (Network tab) for more specific error details. ' +
-        'If it is a CORS issue, the Limitless API server (api.limitless.ai) needs to be configured to allow requests from your application\'s origin.'
+        `Failed to fetch lifelogs. This could be due to a network connectivity issue or a CORS policy blocking the request. ${devMessage}` +
+        'Check your internet connection and the browser\'s developer console (Network tab) for more details. ' +
+        'If it is a CORS issue (less likely with a proxy), the target API server needs to allow requests from the proxy.'
       );
     }
     throw error;

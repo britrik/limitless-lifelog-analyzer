@@ -10,7 +10,7 @@ interface MetricCardProps {
   tooltip: string;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({ title, value, growth, tooltip }) => {
+export const MetricCard: React.FC<MetricCardProps> = ({ title, value, growth, tooltip }) => {
   const growthColor = typeof growth === 'number' ? (growth > 0 ? 'success.main' : 'error.main') : 'text.secondary';
   const GrowthIcon = typeof growth === 'number' ? (growth > 0 ? ArrowUpwardIcon : ArrowDownwardIcon) : null;
 
@@ -33,5 +33,3 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, growth, tooltip }
     </Tooltip>
   );
 };
-
-export default MetricCard;

@@ -14,4 +14,14 @@ export default defineConfig({
       // 'types': path.resolve(__dirname, 'src/types'), // Uncomment if you have a types folder
     },
   },
+  server: {
+    proxy: {
+      '/api/limitless': {
+        target: 'https://api.limitless.com/', // The actual API endpoint
+        changeOrigin: true,
+        secure: false, // Set to true if your target API uses HTTPS and you trust its certificate
+        rewrite: (path) => path.replace(/^\/api\/limitless/, ''), // Optional: if the target doesn't expect '/api/limitless' prefix
+      },
+    },
+  },
 });

@@ -1,24 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Grid, Paper, Typography, Select, MenuItem, FormControl, InputLabel, Box, Tooltip } from '@mui/material';
-import { ErrorBoundary } from 'react-error-boundary'; // Added import (ensure installed: npm install react-error-boundary)
-import { calculateDashboardMetrics, filterTranscriptsByTimeRange, getRecentActivity, generateActivityChartData, generateDurationChartData, generateConversationDensityData, generateHourlyActivityData, generateSentimentTrendData, TIME_RANGES } from 'utils/dashboardAnalytics'; // Absolute import
-import { Transcript } from 'types'; // Absolute import (adjust if types.ts is not in src/types/)
+import { ErrorBoundary } from 'react-error-boundary';
+// utils/dashboardAnalytics functions are used to process transcript data for display.
+// generateHourlyActivityData was removed as ActivityHeatmap now handles its own data processing from raw transcripts.
+import {
+  calculateDashboardMetrics,
+  filterTranscriptsByTimeRange,
+  getRecentActivity,
+  generateActivityChartData,
+  generateDurationChartData,
+  generateConversationDensityData,
+  generateSentimentTrendData,
+  TIME_RANGES
+} from 'utils/dashboardAnalytics';
+import { Transcript } from 'types'; // Assuming Transcript type is defined in src/types.ts
 
-// Imports adjusted for export styles
-import MetricCard from 'components/MetricCard'; // Default import (matches your file)
-import { AnalyticsChart } from 'components/AnalyticsChart'; // Named import
-import { ActivityHeatmap } from 'components/ActivityHeatmap'; // Named import
-import RecentActivityList from 'components/RecentActivityList'; // Relative import (temporary unblock—adjust path if filename differs)
+// Components are imported using named exports from the barrel file src/components/index.ts
+import {
+  MetricCard,
+  AnalyticsChart,
+  ActivityHeatmap,
+  RecentActivityList,
+  LoadingSpinner, // For displaying loading state
+  ErrorDisplay    // For displaying error messages with a retry option
+} from 'components/index';
 
-import { fetchTranscripts } from 'services/limitlessApi';  // Points to src/services/limitlessApi.ts
+// API service for fetching transcripts.
+// FetchTranscriptsResult is imported to type the result of fetchTranscripts.
+import { fetchTranscripts, FetchTranscriptsResult } from 'services/limitlessApi';
 
-// Aliases if AnalyticsChart handles multiple chart types (e.g., via props); adjust as needed
-// Example: If it needs <AnalyticsChart type="line" data={...} />, update usages below
+// Type definition for props of AnalyticsChart if it's generic.
+// These aliases are used if AnalyticsChart can render different chart types.
 const LineChart = AnalyticsChart;
 const BarChart = AnalyticsChart;
-const HeatmapChart = ActivityHeatmap;
+// HeatmapChart alias was removed; ActivityHeatmap is used directly for clarity on its specific props.
 
-// Fallback component for ErrorBoundary (Added)
+// Fallback component to display when an error occurs within an ErrorBoundary.
 const ChartErrorFallback = ({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) => (
   <Box sx={{ p: 3, textAlign: 'center', color: 'error.main' }}>
     <Typography variant="h6">Something went wrong loading this chart</Typography>
@@ -27,15 +44,20 @@ const ChartErrorFallback = ({ error, resetErrorBoundary }: { error: Error; reset
   </Box>
 );
 
+// Define the Dashboard functional component.
 export const Dashboard: React.FC = () => {
+  // State for storing all fetched transcripts.
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
+  // State for the selected time range filter.
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
-  const [metrics, setMetrics] = useState<DashboardMetrics>({
+  // State for storing calculated dashboard metrics.
+  // TODO: Define DashboardMetrics type, assuming it's in types.ts or similar.
+  const [metrics, setMetrics] = useState<any>({ // Replace 'any' with DashboardMetrics type
     totalRecordings: 0,
     hoursRecorded: 0,
     aiAnalyses: 0,
     bookmarks: 0,
-    recentActivity: 0,
+    recentActivity: 0, // This might be a count or a list; ensure type consistency.
     growthPercentages: {
       recordings: 0,
       hours: 0,
@@ -44,65 +66,136 @@ export const Dashboard: React.FC = () => {
     },
     invalidDateCount: 0,
   });
+  // State to manage loading status during API calls.
   const [loading, setLoading] = useState(true);
+  // State to store any error messages from API calls.
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchTranscripts();
-        setTranscripts(data);
-      } catch (error) {
-        console.error('Failed to fetch transcripts:', error);
-      } finally {
-        setLoading(false);
+  // Function to fetch all transcript data.
+  // It sets loading state, calls the API, and handles success or error.
+  const loadAllData = async () => {
+    setLoading(true);
+    setError(null); // Reset error before a new fetch attempt.
+    try {
+      // Fetch all transcripts. fetchTranscripts uses pagination internally if fetchAll is true.
+      // Using a limit of 100 per page as an example.
+      const result: FetchTranscriptsResult = await fetchTranscripts(100, undefined, true);
+      setTranscripts(result.transcripts);
+      if (result.transcripts.length === 0) {
+        console.warn("Dashboard: No transcripts received from API.");
       }
-    };
-    loadData();
-  }, []);
+    } catch (err) {
+      console.error('Dashboard: Failed to fetch transcripts:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred while fetching data.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // useEffect hook to load data when the component mounts.
   useEffect(() => {
-    if (transcripts.length > 0) {
+    loadAllData();
+  }, []); // Empty dependency array means this runs once on mount.
+
+  // useEffect hook to recalculate dashboard metrics when transcripts or timeRange change,
+  // but only if not loading and no error has occurred.
+  useEffect(() => {
+    if (transcripts.length > 0 && !loading && !error) {
       const newMetrics = calculateDashboardMetrics(transcripts, timeRange);
       setMetrics(newMetrics);
     }
-  }, [transcripts, timeRange]);
+  }, [transcripts, timeRange, loading, error]);
 
-  const filteredTranscripts = useMemo(() => filterTranscriptsByTimeRange(transcripts, timeRange), [transcripts, timeRange]);
+  // useMemo hook to filter transcripts based on the selected timeRange.
+  // Returns an empty array if an error occurred to prevent downstream issues.
+  const filteredTranscripts = useMemo(() => {
+    if (error) return [];
+    return filterTranscriptsByTimeRange(transcripts, timeRange);
+  }, [transcripts, timeRange, error]);
 
-  const activityData = useMemo(() => generateActivityChartData(filteredTranscripts, timeRange), [filteredTranscripts, timeRange]);
-  const durationData = useMemo(() => generateDurationChartData(filteredTranscripts, timeRange), [filteredTranscripts, timeRange]);
-  const densityData = useMemo(() => generateConversationDensityData(filteredTranscripts, timeRange), [filteredTranscripts, timeRange]);
-  const hourlyData = useMemo(() => generateHourlyActivityData(filteredTranscripts, timeRange), [filteredTranscripts, timeRange]);
+  // useMemo hooks to generate data for various charts.
+  // These hooks depend on filteredTranscripts and timeRange.
+  // They return default/empty data structures if an error occurred or if there's no data.
+  const activityData = useMemo(() => {
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'success' }; // Ensure 'status' is part of expected type
+    return generateActivityChartData(filteredTranscripts, timeRange);
+  }, [filteredTranscripts, timeRange, error]);
 
-  const [sentimentData, setSentimentData] = useState<ChartDataResponse>({ data: [], status: 'loading' });
+  const durationData = useMemo(() => {
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'success' };
+    return generateDurationChartData(filteredTranscripts, timeRange);
+  }, [filteredTranscripts, timeRange, error]);
 
+  const densityData = useMemo(() => {
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'success' };
+    return generateConversationDensityData(filteredTranscripts, timeRange);
+  }, [filteredTranscripts, timeRange, error]);
+
+  // hourlyData calculation was removed from Dashboard.tsx.
+  // ActivityHeatmap now takes filteredTranscripts and timeRange directly to do its own processing.
+
+  // State for sentiment analysis data.
+  // TODO: Define ChartDataResponse type.
+  const [sentimentData, setSentimentData] = useState<any>({ data: [], status: 'loading' }); // Replace 'any'
+
+  // useEffect hook to load sentiment data.
+  // This runs when filteredTranscripts or timeRange changes, or if an error occurs.
   useEffect(() => {
+    if (error || filteredTranscripts.length === 0) {
+      setSentimentData({ data: [], status: error ? 'error' : 'success' });
+      return;
+    }
     const loadSentiment = async () => {
+      setSentimentData({ data: [], status: 'loading' });
       const data = await generateSentimentTrendData(filteredTranscripts, timeRange);
       setSentimentData(data);
     };
     loadSentiment();
-  }, [filteredTranscripts, timeRange]);
+  }, [filteredTranscripts, timeRange, error]);
 
-  const recentActivity = useMemo(() => getRecentActivity(transcripts), [transcripts]);
+  // useMemo hook to get recent activity items.
+  // Returns an empty array if an error occurred.
+  const recentActivity = useMemo(() => {
+    if (error) return [];
+    return getRecentActivity(transcripts);
+  }, [transcripts, error]);
 
+  // Handler for changing the time range filter.
   const handleTimeRangeChange = (event: React.ChangeEvent<{ value: unknown }>) => {
     setTimeRange(event.target.value as '7d' | '30d' | '90d' | 'all');
   };
 
+  // Conditional rendering for loading state.
   if (loading) {
-    return <Typography>Loading dashboard...</Typography>;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <LoadingSpinner />
+        <Typography sx={{ ml: 2 }}>Loading dashboard...</Typography>
+      </Box>
+    );
   }
 
+  // Conditional rendering for error state.
+  // ErrorDisplay component allows retrying the data fetch.
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <ErrorDisplay message={`Failed to load dashboard: ${error}`} onRetry={loadAllData} />
+      </Box>
+    );
+  }
+
+  // Main dashboard layout.
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>Dashboard</Typography>
 
+      {/* Time range selector */}
       <FormControl sx={{ mb: 3, minWidth: 120 }}>
         <InputLabel>Time Range</InputLabel>
         <Select value={timeRange} onChange={handleTimeRangeChange}>
-          {TIME_RANGES.map((range: TimeRangeFilter) => (
+          {/* TODO: Define TimeRangeFilter type for TIME_RANGES items */}
+          {TIME_RANGES.map((range: any) => ( // Replace 'any'
             <MenuItem key={range.value} value={range.value}>
               {range.label}
             </MenuItem>
@@ -110,6 +203,7 @@ export const Dashboard: React.FC = () => {
         </Select>
       </FormControl>
 
+      {/* Metric cards display */}
       <Grid container spacing={3}>
         <Grid item xs={12} md={3}>
           <MetricCard
@@ -145,13 +239,14 @@ export const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
+      {/* Warning for transcripts with invalid dates */}
       {metrics.invalidDateCount > 0 && (
         <Typography color="warning" sx={{ mt: 2 }}>
           Warning: {metrics.invalidDateCount} transcripts have invalid dates and were skipped in calculations.
         </Typography>
       )}
 
-      {/* Wrapped chart grid in ErrorBoundary */}
+      {/* Grid for various analytical charts, wrapped in an ErrorBoundary */}
       <ErrorBoundary FallbackComponent={ChartErrorFallback} resetKeys={[timeRange]}>
         <Grid container spacing={3} sx={{ mt: 4 }}>
           <Grid item xs={12} md={6}>
@@ -185,14 +280,16 @@ export const Dashboard: React.FC = () => {
         </Grid>
       </ErrorBoundary>
 
-      {/* Wrapped hourly heatmap in its own ErrorBoundary */}
-      <ErrorBoundary FallbackComponent={ChartErrorFallback} resetKeys={[timeRange]}>
+      {/* ActivityHeatmap display, wrapped in its own ErrorBoundary.
+          It now receives filteredTranscripts and timeRange directly. */}
+      <ErrorBoundary FallbackComponent={ChartErrorFallback} resetKeys={[timeRange, filteredTranscripts]}>
         <Paper sx={{ mt: 4, p: 2 }}>
           <Typography variant="h6">Hourly Activity Pattern</Typography>
-          <HeatmapChart data={hourlyData} />
+          <ActivityHeatmap transcripts={filteredTranscripts} timeRange={timeRange} />
         </Paper>
       </ErrorBoundary>
 
+      {/* Recent activity list display */}
       <Paper sx={{ mt: 4, p: 2 }}>
         <Typography variant="h6">Recent Activity</Typography>
         <RecentActivityList items={recentActivity} />
