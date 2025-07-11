@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchTranscripts } from '../services/limitlessApi';
-import { Transcript } from '../types';
-import { AnalyticsChart, ChartDataPoint } from '../components/AnalyticsChart';
+import { Transcript, ChartDataResponse } from '../types'; // Added ChartDataResponse
+import { AnalyticsChart } from '../components/AnalyticsChart'; // ChartDataPoint is no longer exported here
 import { ActivityHeatmap } from '../components/ActivityHeatmap';
 import { TrendAnalysis } from '../components/TrendAnalysis';
 import { TopicsCloud } from '../components/TopicsCloud';
@@ -104,19 +104,54 @@ export const Dashboard: React.FC = () => {
   }, [transcripts, timeRange]);
 
   // Generate chart data
-  const conversationDensityData = useMemo((): ChartDataPoint[] => {
+  // Update to hold ChartDataResponse
+  const conversationDensityChartResponse = useMemo(() => {
     return generateConversationDensityData(transcripts, timeRange);
   }, [transcripts, timeRange]);
 
-  const activityChartData = useMemo((): ChartDataPoint[] => {
+  const activityChartResponse = useMemo(() => {
     return generateActivityChartData(transcripts, timeRange);
   }, [transcripts, timeRange]);
 
-  const sentimentTrendData = useMemo((): ChartDataPoint[] => {
-    return generateSentimentTrendData(transcripts, timeRange);
+  // sentimentTrendData will be handled with useState/useEffect due to its async nature
+  // For now, let's prepare its state
+  const [sentimentTrendChartResponse, setSentimentTrendChartResponse] = useState<ChartDataResponse>({ data: [], status: 'loading' });
+
+  useEffect(() => {
+    let isActive = true;
+    const fetchSentimentData = async () => {
+      if (transcripts.length > 0) {
+        setSentimentTrendChartResponse({ data: [], status: 'loading' }); // Set loading state
+        try {
+          const response = await generateSentimentTrendData(transcripts, timeRange);
+          if (isActive) {
+            setSentimentTrendChartResponse(response);
+          }
+        } catch (error) {
+          console.error("Error generating sentiment trend data:", error);
+          if (isActive) {
+            setSentimentTrendChartResponse({
+              data: [],
+              status: 'error',
+              message: 'Failed to generate sentiment trend data.'
+            });
+          }
+        }
+      } else {
+        // If no transcripts, set to no-data or an appropriate initial state
+        if (isActive) {
+            setSentimentTrendChartResponse({ data: [], status: 'no-data', message: 'No transcripts available for sentiment analysis.' });
+        }
+      }
+    };
+
+    fetchSentimentData();
+    return () => {
+      isActive = false; // Cleanup to prevent setting state on unmounted component
+    };
   }, [transcripts, timeRange]);
 
-  const durationChartData = useMemo((): ChartDataPoint[] => {
+  const durationChartResponse = useMemo(() => {
     return generateDurationChartData(transcripts, timeRange);
   }, [transcripts, timeRange]);
 
@@ -326,7 +361,7 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AnalyticsChart
           key={`conversation-density-${timeRange}`}
-          data={conversationDensityData}
+          chartResponse={conversationDensityChartResponse}
           type="line"
           title="Estimated Speaking Rate (Words/Min)"
           subtitle="Estimated words per minute based on content length - higher values may indicate faster speech or denser content"
@@ -335,7 +370,7 @@ export const Dashboard: React.FC = () => {
         />
         <AnalyticsChart
           key={`sentiment-trend-${timeRange}`}
-          data={sentimentTrendData}
+          chartResponse={sentimentTrendChartResponse}
           type="area"
           title="Word Sentiment Indicators"
           subtitle="Basic sentiment analysis using positive/negative word matching - not a comprehensive emotional analysis"
@@ -348,7 +383,7 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AnalyticsChart
           key={`activity-${timeRange}`}
-          data={activityChartData}
+          chartResponse={activityChartResponse}
           type="bar"
           title="Daily Recording Count"
           subtitle="Number of recordings per day - shows your activity patterns and busy vs. quiet days"
@@ -357,7 +392,7 @@ export const Dashboard: React.FC = () => {
         />
         <AnalyticsChart
           key={`duration-${timeRange}`}
-          data={durationChartData}
+          chartResponse={durationChartResponse}
           type="area"
           title="Estimated Duration Trends"
           subtitle="Estimated recording length based on content analysis - actual duration may vary significantly"

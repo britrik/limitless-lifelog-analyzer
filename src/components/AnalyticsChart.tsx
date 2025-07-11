@@ -32,9 +32,14 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   onGroupByChange?: (groupBy: 'day' | 'week' | 'month') => void;
   timeRange?: '7d' | '30d' | '90d' | 'all';
 }) => {
-  const { data: chartData, status, message } = chartResponse; // Renamed 'data' to 'chartData'
+  // Defensive fallback for chartResponse
+  const { data: chartData, status, message } = chartResponse || { data: [], status: 'loading', message: 'Chart data is being loaded...' };
 
-  const chartKey = React.useMemo(() => `${type}-${title}-${chartData.map(d => d.date + d.value).join('-')}-${selectedGroupBy}-${status}`, [type, title, chartData, selectedGroupBy, status]);
+  // If chartData is undefined (e.g. chartResponse was null/undefined and not caught by || {}), provide default.
+  // However, the above line with `|| { data: [], status: 'loading', ...}` should prevent chartData from being undefined.
+  const safeChartData = chartData || [];
+
+  const chartKey = React.useMemo(() => `${type}-${title}-${safeChartData.map(d => d.date + d.value).join('-')}-${selectedGroupBy}-${status}`, [type, title, safeChartData, selectedGroupBy, status]);
 
   const renderChart = React.useMemo(() => {
     // console.log(`AnalyticsChart: Memoizing chart render for: ${title}, GroupBy: ${selectedGroupBy}, Status: ${status}`); // For debugging
@@ -56,7 +61,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
     }
 
     // Only proceed to render chart if status is 'success'
-    if (status !== 'success' || chartData.length === 0) { // Use chartData
+    if (status !== 'success' || safeChartData.length === 0) { // Use safeChartData
        // Fallback for safety, though 'no-data' status should catch empty data.
       return (
         <div className="flex items-center justify-center h-full text-slate-400 px-4 text-center">
@@ -66,7 +71,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
     }
 
     const commonProps = {
-      data: chartData, // Use chartData
+      data: safeChartData, // Use safeChartData
       margin: { top: 5, right: 30, left: 20, bottom: 5 },
     };
 
@@ -148,7 +153,7 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
           </div>
         );
     }
-  }, [chartData, type, color, showGrid, showTooltip, height, status, message]); // Use chartData in dependencies
+  }, [safeChartData, type, color, showGrid, showTooltip, height, status, message]); // Use safeChartData in dependencies
 
   // Determine if groupBy dropdown should be shown
   // It should be shown if onGroupByChange is provided, and not for "all" time if that's a specific business rule.
