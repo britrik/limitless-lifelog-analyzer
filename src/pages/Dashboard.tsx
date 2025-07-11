@@ -47,10 +47,11 @@ const ChartErrorFallback = ({ error, resetErrorBoundary }: { error: Error; reset
 );
 
 // Define the Dashboard functional component.
+// This component serves as the main view for displaying aggregated analytics from lifelogs.
 export const Dashboard: React.FC = () => {
-  // State for storing all fetched transcripts.
+  // State for storing all fetched transcripts from the Limitless API.
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
-  // State for the selected time range filter.
+  // State for the selected time range filter (e.g., '7d', '30d').
   const [timeRange, setTimeRange] = useState<TimeRangeFilter['value']>('30d'); // Use value from imported type
   // State for storing calculated dashboard metrics.
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -99,12 +100,16 @@ export const Dashboard: React.FC = () => {
   };
 
   // useEffect hook to load data when the component mounts.
+  // Fetches all transcripts once and stores them in the 'transcripts' state.
   useEffect(() => {
     loadAllData();
+    // Log for preserved features or successful data processing initiation
+    console.log("Dashboard component mounted, initiating data load. Preserved features like Speaker Context are managed in their respective components (e.g., Lifelogs, TranscriptDetailModal).");
   }, []); // Empty dependency array means this runs once on mount.
 
   // useEffect hook to recalculate dashboard metrics when transcripts or timeRange change,
   // but only if not loading and no error has occurred.
+  // This is an example of derived state calculation based on fetched data.
   useEffect(() => {
     if (transcripts.length > 0 && !loading && !error) {
       const newMetrics = calculateDashboardMetrics(transcripts, timeRange);
@@ -113,34 +118,37 @@ export const Dashboard: React.FC = () => {
   }, [transcripts, timeRange, loading, error]);
 
   // useMemo hook to filter transcripts based on the selected timeRange.
+  // This is a performance optimization to avoid re-filtering on every render unless dependencies change.
   // Returns an empty array if an error occurred to prevent downstream issues.
   const filteredTranscripts = useMemo(() => {
-    if (error) return [];
+    if (error) return []; // Safeguard against processing during an error state.
     return filterTranscriptsByTimeRange(transcripts, timeRange);
   }, [transcripts, timeRange, error]);
 
   // useMemo hooks to generate data for various charts.
-  // These hooks depend on filteredTranscripts and timeRange.
-  // They return default/empty data structures if an error occurred or if there's no data.
+  // These hooks process 'filteredTranscripts' and 'timeRange' to prepare data structures for chart components.
+  // They return default/empty data structures (with 'no-data' status) if an error occurred or if there's no data,
+  // allowing chart components to display appropriate messages.
   const activityData = useMemo((): GenericChartDataResponse => {
-    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No activity data.' };
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No activity data for this period.' };
     return generateActivityChartData(filteredTranscripts, timeRange);
   }, [filteredTranscripts, timeRange, error]);
 
   const durationData = useMemo((): GenericChartDataResponse => {
-    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No duration data.' };
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No duration data for this period.' };
     return generateDurationChartData(filteredTranscripts, timeRange);
   }, [filteredTranscripts, timeRange, error]);
 
   const densityData = useMemo((): GenericChartDataResponse => {
-    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No density data.' };
+    if (error || filteredTranscripts.length === 0) return { data: [], status: 'no-data', message: 'No density data for this period.' };
     return generateConversationDensityData(filteredTranscripts, timeRange);
   }, [filteredTranscripts, timeRange, error]);
 
-  // hourlyData calculation was removed from Dashboard.tsx.
-  // ActivityHeatmap now takes filteredTranscripts and timeRange directly to do its own processing.
+  // Note: hourlyData calculation was removed from Dashboard.tsx.
+  // ActivityHeatmap now takes filteredTranscripts and timeRange directly to perform its own data processing.
+  // This change was part of the refactor to ensure components manage their specific data shaping where appropriate.
 
-  // State for sentiment analysis data.
+  // State for sentiment analysis data, which is fetched asynchronously.
   const [sentimentData, setSentimentData] = useState<GenericChartDataResponse>({ data: [], status: 'loading' });
 
   // useEffect hook to load sentiment data.

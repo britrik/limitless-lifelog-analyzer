@@ -151,8 +151,9 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
       </div>
       
       {!hasActivityToShow ? (
-        <div className="flex items-center justify-center h-full py-10"> {/* Adjusted for vertical centering */}
-          <p className="text-slate-400">No activity data available for this period.</p>
+        <div className="flex flex-col items-center justify-center h-full py-10 text-center"> {/* Ensure text-center for icon + text */}
+          {/* Optional: MUI Icon can be added here if desired, e.g. <InfoOutlinedIcon sx={{ fontSize: 40, color: 'rgb(148, 163, 184)' }} /> */}
+          <p className="text-slate-400 mt-2">No activity data available for this period.</p> {/* Added mt-2 if icon is present */}
         </div>
       ) : (
         <>

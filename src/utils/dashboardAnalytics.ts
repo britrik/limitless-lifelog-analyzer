@@ -36,6 +36,26 @@ export interface DashboardMetrics {
     bookmarks: number | 'N/A';
   };
   invalidDateCount: number;
+  errorCount?: number; // Optional field for other errors encountered during processing
+}
+
+// Type guard for DashboardMetrics
+export function isValidDashboardMetrics(metrics: any): metrics is DashboardMetrics {
+  return (
+    metrics &&
+    typeof metrics.totalRecordings === 'number' &&
+    typeof metrics.hoursRecorded === 'number' &&
+    typeof metrics.aiAnalyses === 'number' &&
+    typeof metrics.bookmarks === 'number' &&
+    typeof metrics.recentActivity === 'number' && // Assuming recentActivity is a count; adjust if it's an array
+    typeof metrics.invalidDateCount === 'number' &&
+    metrics.growthPercentages &&
+    (typeof metrics.growthPercentages.recordings === 'number' || metrics.growthPercentages.recordings === 'N/A') &&
+    (typeof metrics.growthPercentages.hours === 'number' || metrics.growthPercentages.hours === 'N/A') &&
+    (typeof metrics.growthPercentages.analyses === 'number' || metrics.growthPercentages.analyses === 'N/A') &&
+    (typeof metrics.growthPercentages.bookmarks === 'number' || metrics.growthPercentages.bookmarks === 'N/A') &&
+    (metrics.errorCount === undefined || typeof metrics.errorCount === 'number') // Optional field check
+  );
 }
 
 export interface TimeRangeFilter {
