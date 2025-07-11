@@ -16,7 +16,8 @@ Built for local use, secure by default—no secrets committed.
 ### Dashboard Intelligence & Analytics
 - **Dynamic Metrics**: Real-time calculation of recordings, hours, analyses, and bookmarks
 - **Time Range Filtering**: View data for 7 days, 30 days, 90 days, or all time
-- **Interactive Charts**: Activity trends, duration analysis, and completion rates
+- **Accurate Duration Metrics**: Utilises precise `startTime` and `endTime` from Limitless API metadata (e.g., `{ "startTime": "2023-10-26T10:00:00Z", "endTime": "2023-10-26T11:00:00Z" }`) for duration calculations, falling back to content-based estimation if needed.
+- **Interactive Charts**: Activity trends, duration analysis, and completion rates. Many charts now support configurable data grouping (by Day, Week, or Month) via a dropdown selector. Selecting a specific grouping period (e.g., 'Week') overrides the default grouping logic which is otherwise based on the selected time range (e.g., 7-day and 30-day views default to 'Day' grouping, 90-day to 'Week', and All time to 'Month'). The parent component managing the chart would pass the selected `customGroupBy` option to the chart data generation functions (e.g., `generateActivityChartData(transcripts, '7d', 'week')`).
 - **Activity Heatmap**: GitHub-style heatmap showing daily recording patterns
 - **Topics Cloud**: AI-powered topic extraction and visualization
 - **Trend Analysis**: Compare current vs previous periods with growth indicators
@@ -95,6 +96,14 @@ npm run dev
 
 The application will be available at `http://localhost:5173` (or another port if 5173 is in use).
 
+### 5. **Running Tests**
+
+Unit tests for utility functions are located in the `src/__tests__` directory (e.g., `dashboardAnalytics.test.ts`). These tests are written using Jest/Vitest conventions. To run them, you would typically use a test runner command configured in `package.json` (e.g., `npm test`). As standard test scripts are not currently configured in `package.json`, you may need to set up a test runner or run tests via your IDE's testing tools if available.
+
+### 6. **Running End-to-End (E2E) Tests**
+
+E2E tests using Playwright would typically be located in a separate directory (e.g., `e2e/` or `tests/e2e/`) and contain spec files (e.g., `dashboard.spec.ts`). These tests often rely on deterministic datasets, sometimes referred to as fixtures (e.g., a demo data fixture like `tests/fixtures/transcripts-demo.json`, though the exact path should be verified within the project's E2E test setup). To run them, you would use a command configured in `package.json` (e.g., `npm run test:e2e`). The `test:e2e` script is configured to use `start-server-and-test` to launch the development server and then run Playwright tests.
+
 ---
 
 ## 🏗️ Project Structure
@@ -121,7 +130,7 @@ src/
 │   ├── geminiService.ts    # Google Gemini AI service
 │   └── ...
 ├── utils/               # Utility functions
-│   ├── dashboardAnalytics.ts # Analytics calculations
+│   ├── dashboardAnalytics.ts # Analytics calculations (chart data functions now return ChartDataResponse objects: { data, status, message })
 │   └── ...
 ├── types.ts             # TypeScript type definitions
 └── styles/

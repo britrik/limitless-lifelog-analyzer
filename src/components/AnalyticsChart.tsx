@@ -1,14 +1,11 @@
 import React from 'react';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { ChartDataPoint, ChartDataResponse } from '../../types'; // Import new types
 
-export interface ChartDataPoint {
-  date: string;
-  value: number;
-  label?: string;
-}
+// ChartDataPoint is now imported from types.ts
 
 interface AnalyticsChartProps {
-  data: ChartDataPoint[];
+  chartResponse: ChartDataResponse; // Changed from 'data' to 'chartResponse'
   type: 'line' | 'bar' | 'area';
   title: string;
   subtitle?: string;
@@ -26,16 +23,51 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   color = '#8b5cf6',
   height = 300,
   showGrid = true,
-  showTooltip = true
+  showTooltip = true,
+  selectedGroupBy,
+  onGroupByChange,
+  timeRange
+}: AnalyticsChartProps & {
+  selectedGroupBy?: 'day' | 'week' | 'month';
+  onGroupByChange?: (groupBy: 'day' | 'week' | 'month') => void;
+  timeRange?: '7d' | '30d' | '90d' | 'all';
 }) => {
-  // Create a key based on data to force re-render when data changes
-  const chartKey = `${type}-${data.length}-${data.map(d => d.value).join('-')}`;
+  const { data, status, message } = chartResponse; // Destructure chartResponse
 
-  const renderChart = () => {
+  const chartKey = React.useMemo(() => `${type}-${title}-${data.map(d => d.date + d.value).join('-')}-${selectedGroupBy}-${status}`, [type, title, data, selectedGroupBy, status]);
+
+  const renderChart = React.useMemo(() => {
+    // console.log(`AnalyticsChart: Memoizing chart render for: ${title}, GroupBy: ${selectedGroupBy}, Status: ${status}`); // For debugging
+
+    if (status === 'loading') { // Added a loading state check
+      return (
+        <div className="flex items-center justify-center h-full text-slate-400">
+          Loading chart data...
+        </div>
+      );
+    }
+
+    if (status === 'no-data' || status === 'error') {
+      return (
+        <div className="flex items-center justify-center h-full text-slate-400 px-4 text-center">
+          {message || (status === 'no-data' ? 'No data available.' : 'An error occurred.')}
+        </div>
+      );
+    }
+
+    // Only proceed to render chart if status is 'success'
+    if (status !== 'success' || data.length === 0) {
+       // Fallback for safety, though 'no-data' status should catch empty data.
+      return (
+        <div className="flex items-center justify-center h-full text-slate-400 px-4 text-center">
+           No data to display.
+        </div>
+      );
+    }
+
     const commonProps = {
-      data,
+      data, // Use the destructured data
       margin: { top: 5, right: 30, left: 20, bottom: 5 },
-      key: chartKey,
     };
 
     const axisProps = {
@@ -78,7 +110,6 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
             />
           </LineChart>
         );
-
       case 'bar':
         return (
           <BarChart {...commonProps}>
@@ -93,7 +124,6 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
             />
           </BarChart>
         );
-
       case 'area':
         return (
           <AreaChart {...commonProps}>
@@ -111,7 +141,6 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
             />
           </AreaChart>
         );
-
       default:
         return (
           <div className="flex items-center justify-center h-full text-slate-400">
@@ -119,19 +148,41 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
           </div>
         );
     }
-  };
+  }, [data, type, color, showGrid, showTooltip, height, status, message]); // Updated dependencies for useMemo
+
+  // Determine if groupBy dropdown should be shown
+  // It should be shown if onGroupByChange is provided, and not for "all" time if that's a specific business rule.
+  // For now, just checking if onGroupByChange exists.
+  const showGroupBySelector = !!onGroupByChange && !!selectedGroupBy;
+
 
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-slate-100">{title}</h3>
-        {subtitle && (
-          <p className="text-sm text-slate-400 mt-1">{subtitle}</p>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-100">{title}</h3>
+          {subtitle && (
+            <p className="text-sm text-slate-400 mt-1">{subtitle}</p>
+          )}
+        </div>
+        {showGroupBySelector && (
+          <div>
+            <select
+              value={selectedGroupBy}
+              onChange={(e) => onGroupByChange?.(e.target.value as 'day' | 'week' | 'month')}
+              className="bg-slate-700 text-slate-200 text-sm rounded-md p-2 border border-slate-600 focus:ring-purple-500 focus:border-purple-500"
+              aria-label="Select chart grouping period"
+            >
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+            </select>
+          </div>
         )}
       </div>
       <div style={{ height }}>
         <ResponsiveContainer key={chartKey} width="100%" height="100%">
-          {renderChart()}
+          {renderChart}
         </ResponsiveContainer>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { parseISO, isWithinInterval, subDays, format, startOfDay, startOfWeek, startOfMonth } from 'date-fns';
-import { Transcript, AnalysisType } from '../types';
-import { ChartDataPoint } from '../components/AnalyticsChart';
+import { Transcript, AnalysisType, ChartDataPoint, ChartDataResponse } from '../types';
+// ChartDataPoint is now imported from ../types
 import { performAnalysis } from '../services/geminiService';
 
 // Cache for sentiment analysis results
@@ -34,11 +34,35 @@ export const TIME_RANGES: TimeRangeFilter[] = [
   { label: 'All time', value: 'all' },
 ];
 
-// Estimate duration from content length (rough approximation)
-const estimateDuration = (content: string): number => {
-  // Assume ~150 words per minute, ~5 characters per word
-  const wordCount = content.length / 5;
-  return Math.max(wordCount / 150, 0.1); // Minimum 0.1 hours (6 minutes)
+// Estimate duration using API metadata if available, otherwise from content length.
+const estimateDuration = (transcript: Transcript): number => {
+  if (transcript.startTime && transcript.endTime) {
+    try {
+      const startDate = parseISO(transcript.startTime);
+      const endDate = parseISO(transcript.endTime);
+
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        const diffMilliseconds = endDate.getTime() - startDate.getTime();
+        if (diffMilliseconds >= 0) {
+          // Convert milliseconds to hours
+          return diffMilliseconds / (1000 * 60 * 60);
+        } else {
+          console.warn(`estimateDuration: endTime (${transcript.endTime}) is before startTime (${transcript.startTime}) for transcript ${transcript.id}. Falling back to content length estimation.`);
+        }
+      } else {
+        console.warn(`estimateDuration: Invalid startTime or endTime for transcript ${transcript.id}. startTime: ${transcript.startTime}, endTime: ${transcript.endTime}. Falling back to content length estimation.`);
+      }
+    } catch (error) {
+      console.warn(`estimateDuration: Error parsing startTime or endTime for transcript ${transcript.id}. Error: ${error}. Falling back to content length estimation.`);
+    }
+  } else {
+    // console.log(`estimateDuration: Missing startTime or endTime for transcript ${transcript.id}. Falling back to content length estimation.`); // Optional: log if fields are missing
+  }
+
+  // Fallback: Estimate duration from content length (rough approximation)
+  const wordCount = transcript.content.length / 5; // Assume ~5 characters per word
+  const durationHours = wordCount / 150; // Assume ~150 words per minute
+  return Math.max(durationHours, 0.1); // Minimum 0.1 hours (6 minutes)
 };
 
 // Check if transcript has been analyzed
@@ -124,7 +148,7 @@ export const calculateDashboardMetrics = (
   
   // Current period metrics
   const totalRecordings = filteredTranscripts.length;
-  const hoursRecorded = filteredTranscripts.reduce((sum, t) => sum + estimateDuration(t.content), 0);
+  const hoursRecorded = filteredTranscripts.reduce((sum, t) => sum + estimateDuration(t), 0);
   const aiAnalyses = filteredTranscripts.filter(hasAnalysis).length;
   const bookmarks = filteredTranscripts.filter(t => t.isStarred).length;
   const recentActivity = filterTranscriptsByTimeRange(transcripts, '7d').length;
@@ -153,7 +177,7 @@ export const calculateDashboardMetrics = (
     });
     
     const prevRecordings = previousTranscripts.length;
-    const prevHours = previousTranscripts.reduce((sum, t) => sum + estimateDuration(t.content), 0);
+    const prevHours = previousTranscripts.reduce((sum, t) => sum + estimateDuration(t), 0);
     const prevAnalyses = previousTranscripts.filter(hasAnalysis).length;
     const prevBookmarks = previousTranscripts.filter(t => t.isStarred).length;
     
@@ -181,26 +205,29 @@ export const calculateDashboardMetrics = (
 export const generateActivityChartData = (
   transcripts: Transcript[],
   timeRange: '7d' | '30d' | '90d' | 'all',
-  groupBy?: 'day' | 'week' | 'month'
-): ChartDataPoint[] => {
+  customGroupBy?: 'day' | 'week' | 'month' // Renamed to avoid conflict with internal variable
+): ChartDataResponse => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
-  if (filteredTranscripts.length === 0) return [];
+  if (filteredTranscripts.length === 0) {
+    return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
+  }
 
-  // Determine grouping based on time range if not specified
-  if (!groupBy) {
+  let resolvedGroupBy = customGroupBy;
+  // Determine grouping based on time range if not specified by customGroupBy
+  if (!resolvedGroupBy) {
     switch (timeRange) {
       case '7d':
-        groupBy = 'day';
+        resolvedGroupBy = 'day';
         break;
       case '30d':
-        groupBy = 'day';
+        resolvedGroupBy = 'day';
         break;
       case '90d':
-        groupBy = 'week';
+        resolvedGroupBy = 'week';
         break;
       case 'all':
-        groupBy = 'month';
+        resolvedGroupBy = 'month';
         break;
     }
   }
@@ -214,7 +241,7 @@ export const generateActivityChartData = (
       let key: string;
       let sortDate: Date;
 
-      switch (groupBy) {
+      switch (resolvedGroupBy) {
         case 'day':
           key = format(date, 'MMM dd, yyyy');
           sortDate = startOfDay(date);
@@ -255,32 +282,53 @@ export const generateActivityChartData = (
       const bGroup = groups[b.date];
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
+
+  if (chartDataPoints.length === 0) {
+    return { data: [], status: 'no-data', message: 'No sentiment data to display for the selected period and grouping.' };
+  }
+  return { data: chartDataPoints, status: 'success' };
+
+  // This was the incorrectly duplicated block. The correct one is below.
+  // if (chartData.length === 0) {
+  // return { data: [], status: 'no-data', message: 'No duration data to display for the selected period and grouping.' };
+  // }
+  // return { data: chartData, status: 'success' };
+
+  if (chartData.length === 0) {
+    return { data: [], status: 'no-data', message: 'No activity data to display for the selected period and grouping.' };
+  }
+  return { data: chartData, status: 'success' };
 };
 
 // Generate duration chart data
 export const generateDurationChartData = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all'
-): ChartDataPoint[] => {
+  timeRange: '7d' | '30d' | '90d' | 'all',
+  customGroupBy?: 'day' | 'week' | 'month'
+): ChartDataResponse => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
-  if (filteredTranscripts.length === 0) return [];
+  if (filteredTranscripts.length === 0) {
+    return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
+  }
 
-  // Determine grouping based on time range
-  let groupBy: 'day' | 'week' | 'month';
-  switch (timeRange) {
-    case '7d':
-      groupBy = 'day';
-      break;
-    case '30d':
-      groupBy = 'day';
-      break;
-    case '90d':
-      groupBy = 'week';
-      break;
-    case 'all':
-      groupBy = 'month';
-      break;
+  let resolvedGroupBy = customGroupBy;
+  // Determine grouping based on time range if not specified
+  if (!resolvedGroupBy) {
+    switch (timeRange) {
+      case '7d':
+        resolvedGroupBy = 'day';
+        break;
+      case '30d':
+        resolvedGroupBy = 'day';
+        break;
+      case '90d':
+        resolvedGroupBy = 'week';
+        break;
+      case 'all':
+        resolvedGroupBy = 'month';
+        break;
+    }
   }
 
   // Group by time period and sum durations
@@ -292,7 +340,7 @@ export const generateDurationChartData = (
       let key: string;
       let sortDate: Date;
 
-      switch (groupBy) {
+      switch (resolvedGroupBy) {
         case 'day':
           key = format(date, 'MMM dd, yyyy');
           sortDate = startOfDay(date);
@@ -311,7 +359,7 @@ export const generateDurationChartData = (
           sortDate = startOfDay(date);
       }
 
-      const duration = estimateDuration(transcript.content);
+      const duration = estimateDuration(transcript);
 
       if (!groups[key]) {
         groups[key] = { duration: 0, sortDate };
@@ -333,6 +381,11 @@ export const generateDurationChartData = (
       const bGroup = groups[b.date];
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
+
+  if (chartDataPoints.length === 0) {
+    return { data: [], status: 'no-data', message: 'No duration data to display for the selected period and grouping.' };
+  }
+  return { data: chartDataPoints, status: 'success' };
 };
 
 // Get recent activity items
@@ -416,27 +469,32 @@ export const getRecentActivity = (
 // Generate conversation density chart data (words per minute over time)
 export const generateConversationDensityData = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all'
-): ChartDataPoint[] => {
+  timeRange: '7d' | '30d' | '90d' | 'all',
+  customGroupBy?: 'day' | 'week' | 'month'
+): ChartDataResponse => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
-  if (filteredTranscripts.length === 0) return [];
+  if (filteredTranscripts.length === 0) {
+    return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
+  }
 
-  // Determine grouping based on time range
-  let groupBy: 'day' | 'week' | 'month';
-  switch (timeRange) {
-    case '7d':
-      groupBy = 'day';
-      break;
-    case '30d':
-      groupBy = 'day';
-      break;
-    case '90d':
-      groupBy = 'week';
-      break;
-    case 'all':
-      groupBy = 'month';
-      break;
+  let resolvedGroupBy = customGroupBy;
+  // Determine grouping based on time range if not specified
+  if (!resolvedGroupBy) {
+    switch (timeRange) {
+      case '7d':
+        resolvedGroupBy = 'day';
+        break;
+      case '30d':
+        resolvedGroupBy = 'day';
+        break;
+      case '90d':
+        resolvedGroupBy = 'week';
+        break;
+      case 'all':
+        resolvedGroupBy = 'month';
+        break;
+    }
   }
 
   // Group by time period and calculate average conversation density
@@ -448,7 +506,7 @@ export const generateConversationDensityData = (
       let key: string;
       let sortDate: Date;
 
-      switch (groupBy) {
+      switch (resolvedGroupBy) {
         case 'day':
           key = format(date, 'MMM dd, yyyy');
           sortDate = startOfDay(date);
@@ -466,8 +524,9 @@ export const generateConversationDensityData = (
 
       // Estimate words (rough: content length / 5 characters per word)
       const wordCount = Math.round(transcript.content.length / 5);
-      // Estimate duration in minutes (rough: 150 words per minute speaking rate)
-      const durationMinutes = Math.max(1, wordCount / 150);
+      // Get duration in hours from estimateDuration, then convert to minutes
+      const durationHours = estimateDuration(transcript);
+      const durationMinutes = Math.max(1, durationHours * 60); // Ensure at least 1 minute to avoid division by zero
 
       if (!groups[key]) {
         groups[key] = { totalWords: 0, totalDuration: 0, count: 0, sortDate };
@@ -492,6 +551,11 @@ export const generateConversationDensityData = (
       const bGroup = groups[b.date];
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
+
+  if (chartDataPoints.length === 0) {
+    return { data: [], status: 'no-data', message: 'No conversation density data to display for the selected period and grouping.' };
+  }
+  return { data: chartDataPoints, status: 'success' };
 };
 
 // Generate hourly activity pattern data
@@ -560,27 +624,32 @@ export const generateHourlyActivityData = (
 
 export const generateSentimentTrendData = async (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all'
-): Promise<ChartDataPoint[]> => {
+  timeRange: '7d' | '30d' | '90d' | 'all',
+  customGroupBy?: 'day' | 'week' | 'month'
+): Promise<ChartDataResponse> => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
 
-  if (filteredTranscripts.length === 0) return [];
+  if (filteredTranscripts.length === 0) {
+    return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
+  }
 
-  // Determine grouping based on time range
-  let groupBy: 'day' | 'week' | 'month';
-  switch (timeRange) {
-    case '7d':
-      groupBy = 'day';
-      break;
-    case '30d':
-      groupBy = 'day';
-      break;
-    case '90d':
-      groupBy = 'week';
-      break;
-    case 'all':
-      groupBy = 'month';
-      break;
+  let resolvedGroupBy = customGroupBy;
+  // Determine grouping based on time range if not specified
+  if (!resolvedGroupBy) {
+    switch (timeRange) {
+      case '7d':
+        resolvedGroupBy = 'day';
+        break;
+      case '30d':
+        resolvedGroupBy = 'day';
+        break;
+      case '90d':
+        resolvedGroupBy = 'week';
+        break;
+      case 'all':
+        resolvedGroupBy = 'month';
+        break;
+    }
   }
 
   // Group by time period and calculate sentiment proxy
@@ -749,7 +818,7 @@ export const generateSentimentTrendData = async (
       let key: string;
       let sortDate: Date;
 
-      switch (groupBy) {
+      switch (resolvedGroupBy) {
         case 'day': key = format(date, 'MMM dd, yyyy'); sortDate = startOfDay(date); break;
         case 'week': const weekStart = startOfWeek(date, { weekStartsOn: 1 }); key = format(weekStart, 'MMM dd, yyyy'); sortDate = weekStart; break;
         case 'month': key = format(date, 'MMM yyyy'); sortDate = startOfMonth(date); break;
@@ -782,7 +851,7 @@ export const generateSentimentTrendData = async (
   // for (const transcript of filteredTranscripts) { ... await processTranscriptSentiment(transcript); ... }
   // Then the return map:
 
-  return Object.entries(groups)
+  const chartDataPoints = Object.entries(groups)
     .map(([dateLabel, data]: [string, any]) => ({ // data is explicitly 'any' due to dynamic property 'sentimentSum'
       date: dateLabel,
       value: data.count > 0 ? Math.round((data.sentimentSum / data.count) * 10) / 10 : 0,
@@ -793,4 +862,9 @@ export const generateSentimentTrendData = async (
       const bGroup = groups[b.date];
       return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
     });
+
+  if (chartDataPoints.length === 0) {
+    return { data: [], status: 'no-data', message: 'No sentiment data to display for the selected period and grouping.' };
+  }
+  return { data: chartDataPoints, status: 'success' };
 };

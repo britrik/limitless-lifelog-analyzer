@@ -6,6 +6,8 @@ export interface Transcript {
   content: string;
   summary?: string; // Short summary, could be pre-generated or from initial fetch
   isStarred?: boolean; // Whether the transcript is starred/favorited
+  startTime?: string; // ISO date string, from Lifelog
+  endTime?: string;   // ISO date string, from Lifelog
 }
 
 export enum AnalysisType {
@@ -55,3 +57,21 @@ export interface SpeakerContextCategory {
 
 // Represents the overall state for speaker context
 export type SpeakerContextState = SpeakerContextCategory[];
+
+// --- Chart Data Types ---
+export interface ChartDataPoint { // Already exists in AnalyticsChart.tsx, centralizing here
+  date: string;
+  value: number;
+  label?: string;
+  // For Phase 3: Weighted Sentiment
+  min?: number;
+  max?: number;
+}
+
+export type ChartStatus = 'success' | 'no-data' | 'error' | 'loading';
+
+export interface ChartDataResponse {
+  data: ChartDataPoint[];
+  status: ChartStatus;
+  message?: string; // Optional message, e.g., for 'no-data' or 'error' states
+}

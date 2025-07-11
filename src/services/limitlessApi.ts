@@ -129,6 +129,8 @@ export const fetchTranscripts = async (limit: number = 10, cursor?: string): Pro
       content: lifelog.markdown, 
       summary: generateSummarySnippet(lifelog.markdown),
       isStarred: lifelog.isStarred,
+      startTime: lifelog.startTime, // Added from Lifelog interface
+      endTime: lifelog.endTime,     // Added from Lifelog interface
     }));
 
     return {
