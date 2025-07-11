@@ -43,8 +43,8 @@ const generateSummarySnippet = (markdown: string, maxLength: number = 150): stri
     .replace(/\[(.*?)\]\(.*?\)/g, '$1') 
     .replace(/!\[(.*?)\]\(.*?\)/g, '$1') 
     .replace(/`{1,3}(.*?)`{1,3}/g, '$1') 
-    .replace(/(\r\n|\n|\r)/gm, " ")     
-    .replace(/\s+/g, ' ')              
+    .replace(/(\r\n|\n|\r)/gm, " ")    
+    .replace(/\s+/g, ' ')    
     .trim();
 
   if (plainText.length <= maxLength) {
@@ -52,7 +52,6 @@ const generateSummarySnippet = (markdown: string, maxLength: number = 150): stri
   }
   return plainText.substring(0, maxLength - 3) + "...";
 };
-
 
 const handleApiResponse = async (response: Response) => {
   if (!response.ok) {
@@ -65,7 +64,7 @@ const handleApiResponse = async (response: Response) => {
       try {
         const textErrorBody = await response.text();
         if (textErrorBody) {
-            errorMessage += `\nResponse body: ${textErrorBody.substring(0, 200)}${textErrorBody.length > 200 ? '...' : ''}`;
+          errorMessage += `\nResponse body: ${textErrorBody.substring(0, 200)}${textErrorBody.length > 200 ? '...' : ''}`;
         }
       } catch (textParseError) {
         console.warn("Could not parse error response body as text either.", textParseError);
@@ -79,9 +78,15 @@ const handleApiResponse = async (response: Response) => {
 export interface FetchTranscriptsResult {
   transcripts: Transcript[];
   nextCursor?: string;
+  totalFetched?: number;  // New: for logging total after full fetch
 }
 
-export const fetchTranscripts = async (limit: number = 10, cursor?: string): Promise<FetchTranscriptsResult> => {
+/** Fetches transcripts from Limitless API with pagination support. If fetchAll is true, loops through all pages. */
+export const fetchTranscripts = async (
+  limit: number = 10, 
+  cursor?: string, 
+  fetchAll: boolean = false  // New: if true, fetch all pages via cursors
+): Promise<FetchTranscriptsResult> => {
   if (!LIMITLESS_API_KEY) {
     const errorMessage = "Limitless API Key is not configured. Please set VITE_LIMITLESS_API_KEY in your .env.local file.";
     console.error(errorMessage); // Keep console error for clarity
@@ -125,17 +130,38 @@ export const fetchTranscripts = async (limit: number = 10, cursor?: string): Pro
     const transcripts = rawLifelogs.map((lifelog: Lifelog): Transcript => ({
       id: lifelog.id,
       title: lifelog.title || 'Untitled Lifelog', 
-      date: lifelog.startTime, 
-      content: lifelog.markdown, 
+      date: lifelog.startTime || lifelog.updatedAt || new Date().toISOString(),  // Fallback to updatedAt or now
+      content: lifelog.markdown || '', 
       summary: generateSummarySnippet(lifelog.markdown),
-      isStarred: lifelog.isStarred,
-      startTime: lifelog.startTime, // Added from Lifelog interface
-      endTime: lifelog.endTime,     // Added from Lifelog interface
+      isStarred: lifelog.isStarred ?? false,  // Default false if undefined
+      startTime: lifelog.startTime || '',    // Keep as string, or parse if needed
+      endTime: lifelog.endTime || '',
     }));
 
+    if (transcripts.length === 0) {
+      console.warn('No lifelogs returned from API. This might be expected if there are no transcripts, or check your API params/key.');
+    }
+
+    // New: Pagination looping if fetchAll is true
+    let allTranscripts: Transcript[] = transcripts;
+    let currentCursor = apiResponse.meta?.lifelogs?.nextCursor;
+    let totalFetched = transcripts.length;
+
+    if (fetchAll && currentCursor) {
+      console.log(`Fetching additional pages starting from cursor: ${currentCursor}`);
+      while (currentCursor) {
+        const nextResult = await fetchTranscripts(limit, currentCursor);  // Recursive call (efficient for small depths)
+        allTranscripts = [...allTranscripts, ...nextResult.transcripts];
+        currentCursor = nextResult.nextCursor;
+        totalFetched += nextResult.transcripts.length;
+        if (!currentCursor) break;
+      }
+    }
+
     return {
-      transcripts,
-      nextCursor: apiResponse.meta?.lifelogs?.nextCursor,
+      transcripts: allTranscripts,
+      nextCursor: fetchAll ? undefined : currentCursor,  // If fetchAll, no nextCursor needed
+      totalFetched,
     };
 
   } catch (error: any) {
