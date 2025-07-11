@@ -4,15 +4,15 @@ import { ErrorBoundary } from 'react-error-boundary'; // Added import (ensure in
 import { calculateDashboardMetrics, filterTranscriptsByTimeRange, getRecentActivity, generateActivityChartData, generateDurationChartData, generateConversationDensityData, generateHourlyActivityData, generateSentimentTrendData, TIME_RANGES } from 'utils/dashboardAnalytics'; // Absolute import
 import { Transcript } from 'types'; // Absolute import (adjust if types.ts is not in src/types/)
 
-// Absolute imports based on your structure
-import MetricCard from 'components/MetricCard'; // Your new file
-import AnalyticsChart from 'components/AnalyticsChart'; // Assuming this handles LineChart and BarChart (alias below if needed)
-import ActivityHeatmap from 'components/ActivityHeatmap'; // For HeatmapChart
-import RecentActivityList from 'components/RecentActivityList'; // Exists
+// Named imports based on your structure (no default exports in these files)
+import { MetricCard } from 'components/MetricCard'; // Your new file (assuming named export)
+import { AnalyticsChart } from 'components/AnalyticsChart'; // Named import
+import { ActivityHeatmap } from 'components/ActivityHeatmap'; // Named import
+import { RecentActivityList } from 'components/RecentActivityList'; // Exists (assuming named)
 
 import { fetchTranscripts } from 'services/apiService'; // Absolute import
 
-// Aliases if AnalyticsChart is used for multiple chart types (adjust as needed)
+// Aliases if AnalyticsChart handles multiple chart types (e.g., via props); adjust as needed
 const LineChart = AnalyticsChart;
 const BarChart = AnalyticsChart;
 const HeatmapChart = ActivityHeatmap;
