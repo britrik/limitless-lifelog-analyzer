@@ -21,6 +21,7 @@ Built for local use, secure by default—no secrets committed.
 - **Topics Cloud**: AI-powered topic extraction and visualization
 - **Trend Analysis**: Compare current vs previous periods with growth indicators
 - **Recent Activity Feed**: Live feed of recordings, analyses, and bookmarks
+- **Time Zone Aware Hourly Activity**: Hourly activity patterns are displayed in your local time zone.
 
 ### Advanced Features
 - **Topic Filtering**: Click topics in the cloud to filter transcripts
@@ -139,7 +140,7 @@ src/
 - **Growth Percentages**: Comparison with previous period
 
 ### Chart Visualizations
-- **Activity Chart**: Daily/weekly recording activity over time
+- **Activity Chart**: Daily/weekly recording activity over time (hourly data is time zone aware).
 - **Duration Trends**: Recording duration patterns and trends
 - **Analysis Completion**: Rate of AI analysis completion
 

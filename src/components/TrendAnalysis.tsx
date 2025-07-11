@@ -205,7 +205,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({
         <div className="flex items-center space-x-2">
           {getTrendIcon()}
           <span className={`text-sm font-medium ${getTrendColor()}`}>
-            {trendData.changePercent > 0 ? '+' : ''}{trendData.changePercent.toFixed(1)}%
+              {isNaN(trendData.changePercent) ? 'N/A' : `${trendData.changePercent > 0 ? '+' : ''}${trendData.changePercent.toFixed(1)}%`}
           </span>
         </div>
       </div>
