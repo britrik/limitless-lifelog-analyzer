@@ -6,6 +6,32 @@ import { performAnalysis } from '../services/geminiService';
 // Cache for sentiment analysis results
 const sentimentCache = new Map<string, number | null>();
 
+// Helper to safely parse ISO date strings
+const safeParseISO = (dateStr: string | undefined, transcriptIdForWarning?: string): Date | null => {
+  if (!dateStr) {
+    // Optionally log if dateStr is undefined, though often it's legitimately optional
+    // if (transcriptIdForWarning) {
+    //   console.warn(`safeParseISO: Date string is undefined for transcript ${transcriptIdForWarning}.`);
+    // }
+    return null;
+  }
+  try {
+    const dateObj = parseISO(dateStr);
+    if (isNaN(dateObj.getTime())) {
+      if (transcriptIdForWarning) {
+        console.warn(`safeParseISO: Invalid date string '${dateStr}' for transcript ${transcriptIdForWarning}.`);
+      }
+      return null;
+    }
+    return dateObj;
+  } catch (error) {
+    if (transcriptIdForWarning) {
+      console.warn(`safeParseISO: Error parsing date string '${dateStr}' for transcript ${transcriptIdForWarning}:`, error);
+    }
+    return null;
+  }
+};
+
 // Define GroupBy type
 export type GroupBy = 'day' | 'week' | 'month';
 
@@ -55,32 +81,28 @@ export const TIME_RANGES: TimeRangeFilter[] = [
 // Estimate duration using API metadata if available, otherwise from content length.
 const estimateDuration = (transcript: Transcript): number => {
   if (transcript.startTime && transcript.endTime) {
-    try {
-      const startDate = parseISO(transcript.startTime);
-      const endDate = parseISO(transcript.endTime);
+    const startDate = safeParseISO(transcript.startTime, `${transcript.id} (startTime)`);
+    const endDate = safeParseISO(transcript.endTime, `${transcript.id} (endTime)`);
 
-      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-        const diffMilliseconds = endDate.getTime() - startDate.getTime();
-        if (diffMilliseconds >= 0) {
-          // Convert milliseconds to hours
-          return diffMilliseconds / (1000 * 60 * 60);
-        } else {
-          console.warn(`estimateDuration: endTime (${transcript.endTime}) is before startTime (${transcript.startTime}) for transcript ${transcript.id}. Falling back to content length estimation.`);
-        }
-      } else {
-        console.warn(`estimateDuration: Invalid startTime or endTime for transcript ${transcript.id}. startTime: ${transcript.startTime}, endTime: ${transcript.endTime}. Falling back to content length estimation.`);
+    if (startDate && endDate) {
+      const diffMilliseconds = endDate.getTime() - startDate.getTime();
+      if (diffMilliseconds < 0) {
+        console.warn(`estimateDuration: endTime (${transcript.endTime}) is before startTime (${transcript.startTime}) for transcript ${transcript.id}. Returning 0 duration.`);
+        return 0; // Negative duration is invalid, return 0
       }
-    } catch (error) {
-      console.warn(`estimateDuration: Error parsing startTime or endTime for transcript ${transcript.id}. Error: ${error}. Falling back to content length estimation.`);
+      // If diffMilliseconds is 0, this will correctly return 0.
+      // No artificial minimum for API-derived durations.
+      return diffMilliseconds / (1000 * 60 * 60); // Convert milliseconds to hours
     }
-  } else {
-    // console.log(`estimateDuration: Missing startTime or endTime for transcript ${transcript.id}. Falling back to content length estimation.`); // Optional: log if fields are missing
+    // If parsing failed for startTime or endTime, safeParseISO already warned. Fall through to content-based.
+    console.warn(`estimateDuration: Falling back to content length for transcript ${transcript.id} due to missing/invalid startTime or endTime after safeParseISO.`);
   }
 
-  // Fallback: Estimate duration from content length (rough approximation)
-  const wordCount = transcript.content.length / 5; // Assume ~5 characters per word
-  const durationHours = wordCount / 150; // Assume ~150 words per minute
-  return Math.max(durationHours, 0.1); // Minimum 0.1 hours (6 minutes)
+  // Fallback: Estimate duration from content length.
+  // This is a rough approximation: ~150 words per minute, ~5 characters per word.
+  const wordCount = transcript.content.length / 5;
+  const durationHours = wordCount / 150;
+  return Math.max(durationHours, 0.1); // Apply minimum duration only for content-based fallback
 };
 
 // Check if transcript has been analyzed
@@ -101,76 +123,113 @@ export const filterTranscriptsByTimeRange = (
   const startDate = subDays(now, days);
 
   return transcripts.filter(transcript => {
-    try {
-      const date = parseISO(transcript.date);
-      // Check if date is valid after parsing
-      if (isNaN(date.getTime())) {
-        console.warn(`Skipping transcript with invalid date: ${transcript.id}`);
-        return false;
-      }
-      return isWithinInterval(date, { start: startDate, end: now });
-    } catch {
-      // This catch block might be redundant if parseISO doesn't throw for all invalid date strings
-      // but good to keep for other potential errors during date operations.
-      console.warn(`Skipping transcript due to error processing date: ${transcript.id}`);
+    const dateObj = safeParseISO(transcript.date, transcript.id);
+    if (!dateObj) {
+      // safeParseISO already warns
       return false;
     }
+    return isWithinInterval(dateObj, { start: startDate, end: now });
   });
 };
+
+// --- START REUSABLE GROUPING UTILITY ---
+// Generic type for the data each group will hold
+// It must include sortDate, and can have other properties via [key: string]: any
+export type BaseGroupData = { // Exporting for potential use in tests or other modules if needed
+  sortDate: Date;
+  [key: string]: any;
+};
+
+// Aggregator function type: takes the current group data and a transcript, returns updated group data
+// The transcript type U allows for augmented transcripts (e.g., with a pre-calculated sentimentScore)
+export type Aggregator<G extends BaseGroupData, U extends Transcript = Transcript> = (
+  currentGroupData: G, // Will be initialized by initialDataFactory before first call for a key
+  transcript: U
+) => G;
+
+// Factory for new group's initial data
+export type InitialDataFactory<T extends BaseGroupData> = (sortDate: Date) => T;
+
+// Utility to group transcripts by a specified period (day, week, month)
+export const groupTranscriptsByPeriod = <T extends BaseGroupData, U extends Transcript = Transcript>(
+  transcriptsToGroup: U[], // Array of transcripts (can be augmented, e.g., with sentimentScore)
+  groupBy: GroupBy,
+  aggregator: Aggregator<T, U>,
+  initialDataFactory: InitialDataFactory<T>
+): { groups: Record<string, T>; skippedCount: number } => {
+  const groups: Record<string, T> = {};
+  let skippedCount = 0;
+
+  transcriptsToGroup.forEach(transcript => {
+    // The 'transcript.date' field is used for grouping.
+    const dateObj = safeParseISO(transcript.date, `${transcript.id} in groupTranscriptsByPeriod`);
+    if (!dateObj) {
+      skippedCount++;
+      return; // Skip this transcript if its primary date is invalid
+    }
+
+    let key: string;
+    let sortDate: Date;
+    switch (groupBy) {
+      case 'day': key = format(dateObj, 'MMM dd, yyyy'); sortDate = startOfDay(dateObj); break;
+      case 'week': const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); key = format(weekStart, 'MMM dd, yyyy'); sortDate = weekStart; break;
+      case 'month': key = format(dateObj, 'MMM yyyy'); sortDate = startOfMonth(dateObj); break;
+      default:
+        // Fallback, though should be prevented by GroupBy type
+        key = format(dateObj, 'MMM dd, yyyy');
+        sortDate = startOfDay(dateObj);
+        break;
+    }
+
+    if (!groups[key]) {
+      groups[key] = initialDataFactory(sortDate);
+    }
+    groups[key] = aggregator(groups[key], transcript);
+  });
+
+  // Log if a high percentage of transcripts were skipped
+  if (transcriptsToGroup.length > 0 && skippedCount > 0 && (skippedCount / transcriptsToGroup.length) > 0.1) {
+    console.warn(`groupTranscriptsByPeriod: High percentage of items skipped due to date parsing issues (${skippedCount}/${transcriptsToGroup.length}).`);
+  }
+
+  return { groups, skippedCount };
+};
+// --- END REUSABLE GROUPING UTILITY ---
 
 // Calculate dashboard metrics
 export const calculateDashboardMetrics = (
   transcripts: Transcript[],
   timeRange: '7d' | '30d' | '90d' | 'all'
 ): DashboardMetrics => {
+  // Simplified invalidDateCount: counts all transcripts with unparsable primary dates from the original list.
+  const invalidDateCount = transcripts.reduce((count, transcript) => {
+    const dateObj = safeParseISO(transcript.date); // Don't need transcriptId for this general count here
+    return dateObj ? count : count + 1;
+  }, 0);
+
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
-  let invalidDateCount = 0;
 
-  // Recalculate invalidDateCount for the current time range based on the initial filter logic.
-  // This is a bit redundant as filterTranscriptsByTimeRange already filters them out and logs.
-  // However, to accurately count *within this function's scope* for the given timeRange:
-  const nowForCount = new Date();
-  const daysForCount = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-  const startDateForCount = timeRange === 'all' ? null : subDays(nowForCount, daysForCount);
+  // Current period metrics calculated in a single pass
+  const currentPeriodMetrics = filteredTranscripts.reduce(
+    (acc, t) => {
+      acc.hoursRecorded += estimateDuration(t);
+      if (hasAnalysis(t)) acc.aiAnalyses += 1;
+      if (t.isStarred) acc.bookmarks += 1;
+      return acc;
+    },
+    { hoursRecorded: 0, aiAnalyses: 0, bookmarks: 0 }
+  );
 
-  transcripts.forEach(transcript => {
-    if (timeRange !== 'all' && startDateForCount) {
-      try {
-        const date = parseISO(transcript.date);
-        if (isNaN(date.getTime())) {
-          // This check is important: only count if it would have been in the date range
-          // We need a proxy for whether it *would* have been considered if the date was valid.
-          // This is tricky. For simplicity, we'll count all invalid dates in the raw `transcripts`
-          // array if they fall within the *intended* period, assuming a valid date.
-          // This might slightly overcount if parseISO itself fails for non-date related reasons.
-          // A more robust way would be to inspect `transcript.date` format if possible.
-          invalidDateCount++;
-        } else if (!isWithinInterval(date, { start: startDateForCount, end: nowForCount })) {
-          // Date is valid but outside range, do nothing.
-        }
-      } catch {
-        // Catch errors from parseISO itself for malformed strings
-        invalidDateCount++;
-      }
-    } else if (timeRange === 'all') { // For 'all time', count all that fail to parse
-        try {
-            const date = parseISO(transcript.date);
-            if (isNaN(date.getTime())) {
-                invalidDateCount++;
-            }
-        } catch {
-            invalidDateCount++;
-        }
-    }
-  });
-  
-  // Current period metrics
   const totalRecordings = filteredTranscripts.length;
-  const hoursRecorded = filteredTranscripts.reduce((sum, t) => sum + estimateDuration(t), 0);
-  const aiAnalyses = filteredTranscripts.filter(hasAnalysis).length;
-  const bookmarks = filteredTranscripts.filter(t => t.isStarred).length;
-  const recentActivity = filterTranscriptsByTimeRange(transcripts, '7d').length;
+  const { hoursRecorded, aiAnalyses, bookmarks } = currentPeriodMetrics;
   
+  // recentActivity still needs its own filterTranscriptsByTimeRange call if its range ('7d')
+  // can be different from the main 'timeRange' parameter.
+  const recentActivity = filterTranscriptsByTimeRange(transcripts, '7d').length;
+
+// NOTE: The duplicated grouping utility and its types that appeared here have been removed.
+// The correct single definition is assumed to be earlier in the file.
+
   // Calculate growth percentages (compare with previous period)
   let growthPercentages = {
     recordings: 0,
@@ -199,11 +258,19 @@ export const calculateDashboardMetrics = (
     const prevAnalyses = previousTranscripts.filter(hasAnalysis).length;
     const prevBookmarks = previousTranscripts.filter(t => t.isStarred).length;
     
+    const calculateGrowth = (current: number, previous: number): number => {
+      if (previous === 0) {
+        return current > 0 ? Infinity : 0; // Growth from 0 to positive is Infinity, 0 to 0 is 0%
+      }
+      // The 'prev < 5 ? NaN' rule is removed as per plan, can be re-added if it's a specific business requirement.
+      return ((current - previous) / previous) * 100;
+    };
+
     growthPercentages = {
-      recordings: prevRecordings < 5 ? NaN : prevRecordings === 0 ? (totalRecordings > 0 ? 100 : 0) : ((totalRecordings - prevRecordings) / prevRecordings) * 100,
-      hours: prevHours < 5 ? NaN : prevHours === 0 ? (hoursRecorded > 0 ? 100 : 0) : ((hoursRecorded - prevHours) / prevHours) * 100,
-      analyses: prevAnalyses < 5 ? NaN : prevAnalyses === 0 ? (aiAnalyses > 0 ? 100 : 0) : ((aiAnalyses - prevAnalyses) / prevAnalyses) * 100,
-      bookmarks: prevBookmarks < 5 ? NaN : prevBookmarks === 0 ? (bookmarks > 0 ? 100 : 0) : ((bookmarks - prevBookmarks) / prevBookmarks) * 100,
+      recordings: calculateGrowth(totalRecordings, prevRecordings),
+      hours: calculateGrowth(hoursRecorded, prevHours),
+      analyses: calculateGrowth(aiAnalyses, prevAnalyses),
+      bookmarks: calculateGrowth(bookmarks, prevBookmarks),
     };
   }
   
@@ -233,61 +300,32 @@ export const generateActivityChartData = (
 
   const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
-  // Group transcripts by time period
-  const groups: Record<string, { transcripts: Transcript[], sortDate: Date }> = {};
+  type ActivityGroupData = BaseGroupData & { count: number };
 
-  filteredTranscripts.forEach(transcript => {
-    let dateObj;
-    try {
-      dateObj = parseISO(transcript.date);
-      if (isNaN(dateObj.getTime())) {
-        console.warn(`Skipping transcript ${transcript.id} in generateActivityChartData: invalid date ${transcript.date}`);
-        return; // Skips this iteration of forEach
-      }
-    } catch (e) {
-      console.warn(`Skipping transcript ${transcript.id} in generateActivityChartData: error parsing date ${transcript.date}`, e);
-      return; // Skips this iteration of forEach
-    }
-
-    try {
-      // const date = parseISO(transcript.date); // Already parsed to dateObj
-      let key: string;
-      let sortDate: Date;
-
-      switch (groupBy) { // Use the new 'groupBy' constant
-        case 'day':
-          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
-          sortDate = startOfDay(dateObj);      // Use dateObj
-          break;
-        case 'week':
-          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
-          key = format(weekStart, 'MMM dd, yyyy');
-          sortDate = weekStart;
-          break;
-        case 'month':
-          key = format(dateObj, 'MMM yyyy');    // Use dateObj
-          sortDate = startOfMonth(dateObj);   // Use dateObj
-          break;
-        default:
-          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
-          sortDate = startOfDay(dateObj);      // Use dateObj
-      }
-
-      if (!groups[key]) {
-        groups[key] = { transcripts: [], sortDate };
-      }
-      groups[key].transcripts.push(transcript);
-    } catch {
-      console.warn(`Skipping transcript with invalid date: ${transcript.id}`);
-    }
+  const initialDataFactory: InitialDataFactory<ActivityGroupData> = (sortDate) => ({
+    count: 0,
+    sortDate: sortDate,
   });
 
-  // Convert to chart data and sort by date
+  const aggregator: Aggregator<ActivityGroupData> = (currentGroupData, _transcript) => {
+    return {
+      ...currentGroupData,
+      count: currentGroupData.count + 1,
+    };
+  };
+
+  const { groups } = groupTranscriptsByPeriod<ActivityGroupData>(
+    filteredTranscripts,
+    groupBy,
+    aggregator, // Pass aggregator directly
+    initialDataFactory
+  );
+
   const chartDataPoints = Object.entries(groups)
-    .map(([dateLabel, { transcripts, sortDate }]) => ({
+    .map(([dateLabel, groupData]) => ({
       date: dateLabel,
-      value: transcripts.length,
-      label: `${transcripts.length} recording${transcripts.length !== 1 ? 's' : ''}`,
+      value: groupData.count,
+      label: `${groupData.count} recording${groupData.count !== 1 ? 's' : ''}`,
     }))
     .sort((a, b) => {
       // Sort by the actual date, not the label
@@ -315,61 +353,30 @@ export const generateDurationChartData = (
 
   const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
-  // Group by time period and sum durations
-  const groups: Record<string, { duration: number, sortDate: Date }> = {};
+  type DurationGroupData = BaseGroupData & { totalDuration: number };
 
-  filteredTranscripts.forEach(transcript => {
-    let dateObj;
-    try {
-      dateObj = parseISO(transcript.date);
-      if (isNaN(dateObj.getTime())) {
-        console.warn(`Skipping transcript ${transcript.id} in generateDurationChartData: invalid date ${transcript.date}`);
-        return;
-      }
-    } catch (e) {
-      console.warn(`Skipping transcript ${transcript.id} in generateDurationChartData: error parsing date ${transcript.date}`, e);
-      return;
-    }
-
-    try {
-      // const date = parseISO(transcript.date); // Already parsed to dateObj
-      let key: string;
-      let sortDate: Date;
-
-      switch (groupBy) { // Use the new 'groupBy' constant
-        case 'day':
-          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
-          sortDate = startOfDay(dateObj);      // Use dateObj
-          break;
-        case 'week':
-          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
-          key = format(weekStart, 'MMM dd, yyyy');
-          sortDate = weekStart;
-          break;
-        case 'month':
-          key = format(dateObj, 'MMM yyyy');    // Use dateObj
-          sortDate = startOfMonth(dateObj);   // Use dateObj
-          break;
-        default:
-          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
-          sortDate = startOfDay(dateObj);      // Use dateObj
-      }
-
-      const duration = estimateDuration(transcript);
-
-      if (!groups[key]) {
-        groups[key] = { duration: 0, sortDate };
-      }
-      groups[key].duration += duration;
-    } catch {
-      console.warn(`Skipping transcript with invalid date: ${transcript.id}`);
-    }
+  const initialDataFactory: InitialDataFactory<DurationGroupData> = (sortDate) => ({
+    totalDuration: 0,
+    sortDate: sortDate,
   });
 
+  const aggregator: Aggregator<DurationGroupData> = (currentGroupData, transcript) => {
+    return {
+      ...currentGroupData,
+      totalDuration: currentGroupData.totalDuration + estimateDuration(transcript),
+    };
+  };
+
+  const { groups } = groupTranscriptsByPeriod<DurationGroupData>(
+    filteredTranscripts,
+    groupBy,
+    aggregator,
+    initialDataFactory
+  );
+
   const chartDataPointsResult = Object.entries(groups)
-    .map(([dateLabel, { duration, sortDate }]) => {
-      const numericValue = Number(duration); // Ensure duration is treated as a number
-      const value = isNaN(numericValue) ? 0 : Math.round(numericValue * 10) / 10;
+    .map(([dateLabel, groupData]) => {
+      const value = isNaN(groupData.totalDuration) ? 0 : Math.round(groupData.totalDuration * 10) / 10;
       return {
         date: dateLabel,
         value: value,
@@ -406,22 +413,33 @@ export const getRecentActivity = (
 
   // Get recent transcripts based on timeRange
   const recentTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange)
-    .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime())
+    .sort((a, b) => {
+      const dateA = safeParseISO(a.date, `recentActivity sort ${a.id}`)?.getTime() ?? 0;
+      const dateB = safeParseISO(b.date, `recentActivity sort ${b.id}`)?.getTime() ?? 0;
+      return dateB - dateA; // Sort descending by valid dates
+    })
     .slice(0, limit);
 
   recentTranscripts.forEach(transcript => {
-    const date = parseISO(transcript.date);
-    const now = new Date();
-    const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    const dateObj = safeParseISO(transcript.date, `recentActivity item ${transcript.id}`);
+    if (!dateObj) {
+      return; // Skip if date is invalid
+    }
 
+    const now = new Date();
+    const diffSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
     let relativeTime: string;
-    if (diffHours < 1) {
-      relativeTime = 'Just now';
-    } else if (diffHours < 24) {
-      relativeTime = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+
+    if (diffSeconds < 0) {
+      relativeTime = 'Invalid date'; // Future date
+    } else if (diffSeconds < 60) {
+      relativeTime = `${diffSeconds}s ago`;
+    } else if (diffSeconds < 3600) { // Less than an hour
+      relativeTime = `${Math.floor(diffSeconds / 60)}m ago`;
+    } else if (diffSeconds < 86400) { // Less than a day
+      relativeTime = `${Math.floor(diffSeconds / 3600)}h ago`;
     } else {
-      const diffDays = Math.floor(diffHours / 24);
-      relativeTime = `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+      relativeTime = `${Math.floor(diffSeconds / 86400)}d ago`;
     }
 
     // Add recording activity
@@ -461,7 +479,11 @@ export const getRecentActivity = (
 
   // Sort by timestamp and limit
   return activities
-    .sort((a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime())
+    .sort((a, b) => {
+      const timeA = safeParseISO(a.timestamp, `activity sort ${a.id}`)?.getTime() ?? 0;
+      const timeB = safeParseISO(b.timestamp, `activity sort ${b.id}`)?.getTime() ?? 0;
+      return timeB - timeA; // Sort descending
+    })
     .slice(0, limit);
 };
 
@@ -479,65 +501,38 @@ export const generateConversationDensityData = (
 
   const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
-  // Group by time period and calculate average conversation density
-  const groups: Record<string, { totalWords: number; totalDuration: number; count: number; sortDate: Date }> = {};
+  type DensityGroupData = BaseGroupData & { totalWords: number; totalDurationMinutes: number; count: number };
 
-  filteredTranscripts.forEach(transcript => {
-    let dateObj;
-    try {
-      dateObj = parseISO(transcript.date);
-      if (isNaN(dateObj.getTime())) {
-        console.warn(`Skipping transcript ${transcript.id} in generateConversationDensityData: invalid date ${transcript.date}`);
-        return;
-      }
-    } catch (e) {
-      console.warn(`Skipping transcript ${transcript.id} in generateConversationDensityData: error parsing date ${transcript.date}`, e);
-      return;
-    }
-
-    try {
-      // const date = parseISO(transcript.date); // Already parsed to dateObj
-      let key: string;
-      let sortDate: Date;
-
-      switch (groupBy) { // Use the new 'groupBy' constant
-        case 'day':
-          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
-          sortDate = startOfDay(dateObj);      // Use dateObj
-          break;
-        case 'week':
-          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
-          key = format(weekStart, 'MMM dd, yyyy');
-          sortDate = weekStart;
-          break;
-        case 'month':
-          key = format(dateObj, 'MMM yyyy');    // Use dateObj
-          sortDate = startOfMonth(dateObj);   // Use dateObj
-          break;
-      }
-
-      // Estimate words (rough: content length / 5 characters per word)
-      const wordCount = Math.round(transcript.content.length / 5);
-      // Get duration in hours from estimateDuration, then convert to minutes
-      const durationHours = estimateDuration(transcript);
-      const durationMinutes = Math.max(1, durationHours * 60); // Ensure at least 1 minute to avoid division by zero
-
-      if (!groups[key]) {
-        groups[key] = { totalWords: 0, totalDuration: 0, count: 0, sortDate };
-      }
-
-      groups[key].totalWords += wordCount;
-      groups[key].totalDuration += durationMinutes;
-      groups[key].count += 1;
-    } catch {
-      console.warn(`Skipping transcript with invalid date: ${transcript.id}`);
-    }
+  const initialDataFactory: InitialDataFactory<DensityGroupData> = (sortDate) => ({
+    totalWords: 0,
+    totalDurationMinutes: 0,
+    count: 0, // Changed from transcriptCount to count for consistency
+    sortDate: sortDate,
   });
 
+  const aggregator: Aggregator<DensityGroupData> = (currentGroupData, transcript) => {
+    const wordCount = Math.round(transcript.content.length / 5);
+    const durationHours = estimateDuration(transcript);
+    const durationMinutes = Math.max(1, durationHours * 60);
+    return {
+      ...currentGroupData,
+      totalWords: currentGroupData.totalWords + wordCount,
+      totalDurationMinutes: currentGroupData.totalDurationMinutes + durationMinutes,
+      count: currentGroupData.count + 1,
+    };
+  };
+
+  const { groups } = groupTranscriptsByPeriod<DensityGroupData>(
+    filteredTranscripts,
+    groupBy,
+    aggregator,
+    initialDataFactory
+  );
+
   const chartDataPointsResult = Object.entries(groups)
-    .map(([dateLabel, data]) => {
-      const WPM = (data.totalDuration > 0 && typeof data.totalWords === 'number' && !isNaN(data.totalWords))
-                   ? (data.totalWords / data.totalDuration)
+    .map(([dateLabel, groupData]) => {
+      const WPM = (groupData.totalDurationMinutes > 0 && typeof groupData.totalWords === 'number' && !isNaN(groupData.totalWords))
+                   ? (groupData.totalWords / groupData.totalDurationMinutes)
                    : 0;
       const value = isNaN(WPM) ? 0 : Math.round(WPM * 10) / 10;
       return {
@@ -567,41 +562,28 @@ export const generateHourlyActivityData = (
   if (filteredTranscripts.length === 0) return [];
 
   // Initialize 24-hour array
-  const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
-    hour,
-    activity: 0,
-    count: 0,
-    label: `${hour.toString().padStart(2, '0')}:00`
-  }));
+  // Initialize 24-hour array with AM/PM labels (based on UTC hours)
+  const hourlyData = Array.from({ length: 24 }, (_, i) => {
+    const hour12 = i % 12 === 0 ? 12 : i % 12; // 0 and 12 become 12
+    const ampm = i < 12 ? 'AM' : 'PM'; // 0-11 are AM, 12-23 are PM
+    return {
+      hour: i,
+      activity: 0,
+      count: 0,
+      label: `${hour12} ${ampm} UTC` // Indicate UTC
+    };
+  });
 
   filteredTranscripts.forEach(transcript => {
+    // Use safeParseISO for robust date parsing.
+    // The hour extraction will be UTC-based.
+    const dateObj = safeParseISO(transcript.date, `${transcript.id} in generateHourlyActivityData`);
+    if (!dateObj) {
+      return; // Skips this transcript if date is invalid
+    }
+
     try {
-      let date = parseISO(transcript.date);
-      if (isNaN(date.getTime())) {
-        console.warn(`Skipping transcript with invalid date for hourly data: ${transcript.id}`);
-        return; // Skip this transcript
-      }
-
-      // Normalize to local time zone, fallback to UTC
-      try {
-        const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const localizedDateString = date.toLocaleString('en-US', { timeZone: localTimeZone });
-        date = new Date(localizedDateString); // Re-parse the date string that's now in local time
-        if (isNaN(date.getTime())) { // Fallback if localized date string is invalid
-            console.warn(`Failed to convert date to local time zone for transcript ${transcript.id}, using UTC.`);
-            date = parseISO(transcript.date); // Re-parse as UTC
-        }
-      } catch (tzError) {
-        console.warn(`Error getting local time zone or converting date for transcript ${transcript.id}, defaulting to UTC. Error: ${tzError}`);
-        // Date is already parsed as UTC if parseISO was successful initially
-        date = parseISO(transcript.date); // Ensure it's the original UTC date if any error occurred
-         if (isNaN(date.getTime())) { // Should not happen if first check passed, but as safeguard
-            console.warn(`Skipping transcript with invalid date after TZ fallback: ${transcript.id}`);
-            return;
-        }
-      }
-
-      const hour = date.getHours();
+      const hour = dateObj.getUTCHours(); // Consistently use UTC hours
 
       // Calculate activity score (words per transcript as proxy for engagement)
       const wordCount = Math.round(transcript.content.length / 5);
@@ -627,198 +609,80 @@ export const generateSentimentTrendData = async (
   customGroupBy?: GroupBy
 ): Promise<ChartDataResponse> => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
-
   if (filteredTranscripts.length === 0) {
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
   const groupBy: GroupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
 
-  // Group by time period and calculate sentiment proxy
-  const groups: Record<string, { positiveWords: number; totalWords: number; count: number; sortDate: Date; sentimentSum?: number }> = {};
-
-  // Simple positive word indicators (can be enhanced)
-  const positiveWordsList = ['good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'love', 'like', 'enjoy', 'happy', 'excited', 'awesome', 'perfect', 'brilliant', 'outstanding'];
-  const negativeWordsList = ['bad', 'terrible', 'awful', 'hate', 'dislike', 'frustrated', 'angry', 'sad', 'disappointed', 'worried', 'stressed', 'difficult', 'problem', 'issue', 'wrong'];
-
-  // Use an async IIFE to handle promises within the synchronous function structure if needed,
-  // or refactor parent functions to be async. For now, let's assume direct async processing.
-  // This function will need to become async.
   const processTranscriptSentiment = async (transcript: Transcript): Promise<number> => {
     if (sentimentCache.has(transcript.id)) {
-      // Ensure cached value is not null before returning, default to 0 if it is (though cache should store numbers)
       return sentimentCache.get(transcript.id) ?? 0;
     }
-
-    let score = 0; // Default score to 0
-
+    let score = 0;
     try {
       const analysisResult = await performAnalysis(transcript.content, AnalysisType.SENTIMENT);
-
-      // Expect analysisResult.data to be { score: number, label: string } from geminiService fallback or actual API
       if (analysisResult.data && typeof analysisResult.data.score === 'number') {
         score = analysisResult.data.score;
-      } else {
-        // Data from performAnalysis is not in the expected { score: number } shape.
-        // geminiService.ts should have provided a { score: 0, label: 'neutral' } fallback for API errors.
-        // This path means either Gemini returned an unexpected successful response shape,
-        // or an error occurred that wasn't caught and handled by geminiService's sentiment fallback.
-        // Defaulting to score 0. The warning is removed as requested.
-        // console.warn(`Sentiment data for transcript ${transcript.id} not in expected {score, label} format. Data: `, analysisResult.data, ` Using default score 0.`);
-        // Score remains 0 as initialized
       }
+      // Warning for unexpected format removed, defaulting to 0 silently if score not found
     } catch (error) {
-      // This catch block is if performAnalysis itself throws an error, which it shouldn't for SENTIMENT type
-      // due to changes in geminiService.ts. Included for robustness.
       console.error(`Error processing sentiment for transcript ${transcript.id}: ${error}. Defaulting score to 0.`);
-      // Score remains 0 as initialized
     }
-
-    // Ensure score is a valid number and within bounds, default to 0 if NaN
     const finalScore = (!isNaN(score) && score !== null) ? Math.max(-100, Math.min(100, score)) : 0;
     sentimentCache.set(transcript.id, finalScore);
     return finalScore;
   };
 
-  // This function needs to be async due to processTranscriptSentiment
-  // We'll collect all promises and then process them.
-  const promises = filteredTranscripts.map(async transcript => {
-    let dateObj;
-    try {
-      dateObj = parseISO(transcript.date);
-      if (isNaN(dateObj.getTime())) {
-        console.warn(`Skipping transcript ${transcript.id} in generateSentimentTrendData: invalid date ${transcript.date}`);
-        return null; // This will be filtered out later
-      }
-    } catch (e) {
-      console.warn(`Skipping transcript ${transcript.id} in generateSentimentTrendData: error parsing date ${transcript.date}`, e);
-      return null; // This will be filtered out later
-    }
-
-    try {
-      // const date = parseISO(transcript.date); // Already parsed to dateObj
-      let key: string;
-      let sortDate: Date;
-
-      switch (groupBy) {
-        case 'day':
-          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
-          sortDate = startOfDay(dateObj);      // Use dateObj
-          break;
-        case 'week':
-          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Use dateObj
-          key = format(weekStart, 'MMM dd, yyyy');
-          sortDate = weekStart;
-          break;
-        case 'month':
-          key = format(dateObj, 'MMM yyyy');    // Use dateObj
-          sortDate = startOfMonth(dateObj);   // Use dateObj
-          break;
-        default: // Should not happen with current types, but good for safety
-          key = format(dateObj, 'MMM dd, yyyy'); // Use dateObj
-          sortDate = startOfDay(dateObj);      // Use dateObj
-          break;
-      }
-
-      const sentimentScore = await processTranscriptSentiment(transcript);
-
-      if (sentimentScore === null) return null; // Skip if sentiment processing failed entirely
-
-      return { key, sortDate, sentimentScore };
-    } catch (error) { // Catches errors from date parsing primarily
-      console.warn(`Skipping transcript with invalid date: ${transcript.id}`, error);
+  // Step 1: Augment transcripts with their sentiment scores, filtering out those with initially invalid dates.
+  const sentimentProcessingPromises = filteredTranscripts.map(async (transcript) => {
+    const dateObjForValidityCheck = safeParseISO(transcript.date, `${transcript.id} (pre-sentiment check)`);
+    if (!dateObjForValidityCheck) {
       return null;
     }
+    const sentimentScore = await processTranscriptSentiment(transcript);
+    return { ...transcript, sentimentScore };
   });
 
-  // Resolve all promises and then group
-  // This function `generateSentimentTrendData` must be declared async.
-  // For now, this change implies that callers of generateSentimentTrendData must await it.
-  // This is a significant change. Assuming this is acceptable.
+  const transcriptsWithSentiment = (await Promise.all(sentimentProcessingPromises))
+    .filter(t => t !== null) as (Transcript & { sentimentScore: number })[];
 
-  // The function signature needs to be changed to:
-  // export const generateSentimentTrendData = async ( ... ): Promise<ChartDataPoint[]> => { ... }
-  // I will make this change in a separate step if required, for now focusing on the logic.
-
-  // The following processing needs to happen after all promises resolve.
-  // This requires `generateSentimentTrendData` to be `async` and use `await Promise.all(promises)`.
-  // Let's simulate this for now, assuming the function is async.
-
-  // Placeholder for the actual async transformation of the function:
-  // const processedResults = await Promise.all(promises);
-  // For now, I'll write the grouping logic as if `processedResults` is available.
-  // This will require a follow-up to make the function truly async.
-
-  // The grouping logic will be applied to the results of the promises.
-  // This current implementation will not work directly without making generateSentimentTrendData async.
-  // I will proceed with the logic assuming it becomes async.
-  // The tool does not allow me to change the function signature and body in one go easily.
-
-  // Correct approach: The function itself must be async.
-  // I will attempt to make the function async and then process.
-  // If the tool has limitations, I'll note it.
-
-  // For demonstration, let's assume we can make it async and process results:
-  // This function needs to be declared async.
-  // The following is conceptual until the function is made async.
-  // const results = await Promise.all(promises);
-  // results.forEach(result => {
-  // if (result) {
-  // if (!groups[result.key]) {
-  // groups[result.key] = { sentimentSum: 0, count: 0, sortDate: result.sortDate };
-  // }
-  // groups[result.key].sentimentSum += result.sentimentScore;
-  // groups[result.key].count += 1;
-  // }
-  // });
-  // The return map also changes.
-
-  // Given the constraints, I will first write the fallback logic correctly and the API call.
-  // The full async conversion might need to be a separate step or manual intervention.
-
-  // Rewriting the loop part to be more direct if we assume it's made async.
-  // This will be part of an async function.
-  // Removed IIFE, directly using await in the async function
-
-  // Resolve all promises and filter out nulls (from date parsing errors)
-  const resolvedPromiseData = (await Promise.all(promises)).filter(p => p !== null) as { key: string; sortDate: Date; sentimentScore: number; }[];
-
-  if (resolvedPromiseData.length === 0 && filteredTranscripts.length > 0) {
-    // This means all transcripts had date parsing issues if filteredTranscripts was not initially empty
-    return { data: [], status: 'no-data', message: 'No sentiment data to display due to date parsing issues in all relevant transcripts.' };
+  if (transcriptsWithSentiment.length === 0) {
+    const message = filteredTranscripts.length > 0
+      ? 'No processable transcripts for sentiment chart after date validation or sentiment fetching.'
+      : 'No transcripts found for selected period.';
+    return { data: [], status: 'no-data', message };
   }
 
-  // Process valid results
-  for (const item of resolvedPromiseData) {
-    if (!item) continue; // Should be redundant due to filter above, but for safety
-    const { key, sortDate, sentimentScore } = item;
+  // Step 2: Group these augmented transcripts
+  type SentimentGroupData = BaseGroupData & { sentimentSum: number; count: number };
+  const initialDataFactory: InitialDataFactory<SentimentGroupData> = (sd) => ({
+    sentimentSum: 0,
+    count: 0,
+    sortDate: sd
+  });
 
-    if (!groups[key]) {
-      groups[key] = { positiveWords: 0, totalWords: 0, count: 0, sortDate, sentimentSum: 0 };
-    }
-    groups[key].sentimentSum! += sentimentScore;
-    groups[key].count += 1;
+  const aggregator: Aggregator<SentimentGroupData, Transcript & { sentimentScore: number }> = (currentGroupData, t) => ({
+    ...currentGroupData, // Spread previous group data
+    sentimentSum: currentGroupData.sentimentSum + t.sentimentScore,
+    count: currentGroupData.count + 1,
+  });
+
+  const { groups } = groupTranscriptsByPeriod<SentimentGroupData, Transcript & { sentimentScore: number }>(
+    transcriptsWithSentiment, groupBy, aggregator, initialDataFactory
+  );
+
+  if (Object.keys(groups).length === 0 && transcriptsWithSentiment.length > 0) {
+     // This implies all items in transcriptsWithSentiment were skipped by groupTranscriptsByPeriod's internal date check
+     return { data: [], status: 'no-data', message: 'No sentiment data to display due to grouping issues (e.g. all dates invalid for grouping after sentiment processing).' };
   }
-
-  // The function `generateSentimentTrendData` MUST be `async`.
-  // I will proceed assuming that modification is made.
-  // The loop should be a standard for...of loop within the async function.
-
-  // Corrected structure (conceptual, assuming function is async):
-  // for (const transcript of filteredTranscripts) { ... await processTranscriptSentiment(transcript); ... }
-  // Then the return map:
 
   const chartDataPoints = Object.entries(groups)
-    .map(([dateLabel, data]: [string, any]) => ({ // data is explicitly 'any' due to dynamic property 'sentimentSum'
-      date: dateLabel,
-      value: data.count > 0 ? Math.round((data.sentimentSum / data.count) * 10) / 10 : 0,
-      label: `${data.count > 0 ? Math.round((data.sentimentSum / data.count) * 10) / 10 : 0} sentiment score`,
-    }))
-    .sort((a, b) => {
-      const aGroup = groups[a.date];
-      const bGroup = groups[b.date];
-      return aGroup.sortDate.getTime() - bGroup.sortDate.getTime();
-    });
+    .map(([dateLabel, groupData]) => {
+      const value = groupData.count > 0 ? Math.round((groupData.sentimentSum / groupData.count) * 10) / 10 : 0;
+      return { date: dateLabel, value, label: `${value} sentiment score` };
+    })
+    .sort((a, b) => (groups[a.date] as SentimentGroupData).sortDate.getTime() - (groups[b.date] as SentimentGroupData).sortDate.getTime());
 
   const status = chartDataPoints.length ? 'success' : 'no-data';
   const message = status === 'no-data' ? 'No sentiment data to display for the selected period and grouping.' : undefined;
