@@ -6,15 +6,15 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import TextField from '@mui/material/TextField';
 import { format } from 'date-fns';
 
-import { fetchTranscripts } from '../services/limitlessApi'; // Path to limitlessApi.ts (adjust if needed)
-import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Import actual named exports from the file
-import { Transcript } from '../types';
+import { fetchTranscripts } from '../services/limitlessApi'; // Correct: Relative to src/services/limitlessApi.ts
+import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Correct: Relative to src/utils/dashboardAnalytics.ts
+import { Transcript } from '../types'; // Correct: Relative to src/types.ts
 
-import ActivityHeatmap from './ActivityHeatmap';
-import SentimentTrendChart from './SentimentTrendChart';
-import RecentActivityList from './RecentActivityList';
-import TopSpeakers from './TopSpeakers';
-import ErrorBoundary from './ErrorBoundary';
+import ActivityHeatmap from '../components/ActivityHeatmap'; // Correct: Relative to src/components/ActivityHeatmap.tsx
+import SentimentTrendChart from '../components/SentimentTrendChart'; // Correct: Relative to src/components/SentimentTrendChart.tsx
+import RecentActivityList from '../components/RecentActivityList'; // Correct: Relative to src/components/RecentActivityList.tsx
+import TopSpeakers from '../components/TopSpeakers'; // Correct: Relative to src/components/TopSpeakers.tsx
+import ErrorBoundary from '../components/ErrorBoundary'; // Correct: Relative to src/components/ErrorBoundary.tsx
 
 const Dashboard: React.FC = () => {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
