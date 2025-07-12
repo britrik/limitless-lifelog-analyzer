@@ -4,7 +4,11 @@ import path from 'path'; // For resolving absolute paths
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react({
+      jsxRuntime: 'automatic', // Enables React 19's automatic JSX transform to fix chunk export errors
+    }),
+  ],
   resolve: {
     alias: {
       // These match your tsconfig paths for absolute imports
