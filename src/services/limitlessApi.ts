@@ -96,6 +96,26 @@ const fetchWithRetry = async (url: string, options: RequestInit, retries: number
   throw new Error(`Failed to fetch after ${retries} attempts. Check network or API status.`);
 };
 
+export const fetchTranscripts = async (
+  limit: number = 10,
+  cursor?: string,
+  queryParams: { date?: string; start?: string; end?: string; timezone?: string } = {}
+): Promise<FetchTranscriptsResult> => {
+  // ... (keep the existing key check and logging)
+
+  const params = new URLSearchParams({
+    limit: String(limit),
+    direction: 'desc',
+    includeMarkdown: 'true',
+  });
+
+  if (cursor) params.append('cursor', cursor);
+  if (queryParams.date) params.append('date', queryParams.date); // YYYY-MM-DD
+  if (queryParams.start) params.append('start', queryParams.start); // ISO-like datetime
+  if (queryParams.end) params.append('end', queryParams.end);
+  if (queryParams.timezone) params.append('timezone', queryParams.timezone); // e.g., 'Europe/London'
+
+  const url = `${LIMITLESS_API_BASE_URL}/lifelogs?${params.toString()}`;
 export const fetchTranscripts = async (limit: number = 10, cursor?: string): Promise<FetchTranscriptsResult> => {
   if (!LIMITLESS_API_KEY) {
     const errorMessage = "Limitless API Key is not configured. Please set VITE_LIMITLESS_API_KEY in your .env.local file.";
