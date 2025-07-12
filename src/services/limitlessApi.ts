@@ -9,17 +9,7 @@ if (!LIMITLESS_API_KEY) {
   );
 }
 
-// Dynamically set the API base URL based on the environment
-const PROD_API_URL = 'https://api.limitless.com'; // Your production API URL
-const DEV_PROXY_PATH = '/api/limitless';         // The path configured in Vite proxy
-
-const LIMITLESS_API_BASE_URL = import.meta.env.DEV ? DEV_PROXY_PATH : PROD_API_URL;
-
-if (import.meta.env.DEV) {
-  console.log("Development mode: Using proxy path for API calls:", LIMITLESS_API_BASE_URL);
-} else {
-  console.log("Production mode: Using direct API URL:", LIMITLESS_API_BASE_URL);
-}
+const LIMITLESS_API_BASE_URL = "/api/limitless/v1"; // Updated to include /v1 for correct endpoint (proxies to https://api.limitless.ai/v1)
 
 interface Lifelog {
   id: string;
@@ -88,15 +78,25 @@ const handleApiResponse = async (response: Response) => {
 export interface FetchTranscriptsResult {
   transcripts: Transcript[];
   nextCursor?: string;
-  totalFetched?: number;  // New: for logging total after full fetch
 }
 
-/** Fetches transcripts from Limitless API with pagination support. If fetchAll is true, loops through all pages. */
-export const fetchTranscripts = async (
-  limit: number = 10, 
-  cursor?: string, 
-  fetchAll: boolean = false  // New: if true, fetch all pages via cursors
-): Promise<FetchTranscriptsResult> => {
+const fetchWithRetry = async (url: string, options: RequestInit, retries: number = 3): Promise<Response> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      console.warn(`Fetch attempt ${attempt} failed: ${response.status} ${response.statusText}`);
+    } catch (error) {
+      console.warn(`Fetch attempt ${attempt} error: ${error}`);
+    }
+    if (attempt < retries) {
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+    }
+  }
+  throw new Error(`Failed to fetch after ${retries} attempts. Check network or API status.`);
+};
+
+export const fetchTranscripts = async (limit: number = 10, cursor?: string): Promise<FetchTranscriptsResult> => {
   if (!LIMITLESS_API_KEY) {
     const errorMessage = "Limitless API Key is not configured. Please set VITE_LIMITLESS_API_KEY in your .env.local file.";
     console.error(errorMessage); // Keep console error for clarity
@@ -120,8 +120,10 @@ export const fetchTranscripts = async (
     params.append('cursor', cursor);
   }
 
+  const url = `${LIMITLESS_API_BASE_URL}/lifelogs?${params.toString()}`; // Now includes /v1/lifelogs
+
   try {
-    const response = await fetch(`${LIMITLESS_API_BASE_URL}/lifelogs?${params.toString()}`, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         'X-API-Key': LIMITLESS_API_KEY, 
@@ -134,57 +136,33 @@ export const fetchTranscripts = async (
 
     if (!rawLifelogs || !Array.isArray(rawLifelogs)) {
       console.error('Unexpected API response structure for lifelogs list:', apiResponse);
-      throw new Error('Failed to parse lifelogs: Unexpected API response structure.');
+      throw new Error('Failed to parse lifelogs: Unexpected API response structure. Check https://www.limitless.ai/developers for updates.');
     }
 
     const transcripts = rawLifelogs.map((lifelog: Lifelog): Transcript => ({
       id: lifelog.id,
       title: lifelog.title || 'Untitled Lifelog', 
-      date: lifelog.startTime || lifelog.updatedAt || new Date().toISOString(),  // Fallback to updatedAt or now
-      content: lifelog.markdown || '', 
+      date: lifelog.startTime, 
+      content: lifelog.markdown, 
       summary: generateSummarySnippet(lifelog.markdown),
-      isStarred: lifelog.isStarred ?? false,  // Default false if undefined
-      startTime: lifelog.startTime || '',    // Keep as string, or parse if needed
-      endTime: lifelog.endTime || '',
+      isStarred: lifelog.isStarred,
+      startTime: lifelog.startTime, // Added from Lifelog interface
+      endTime: lifelog.endTime,    // Added from Lifelog interface
     }));
 
-    if (transcripts.length === 0) {
-      console.warn('No lifelogs returned from API. This might be expected if there are no transcripts, or check your API params/key.');
-    }
-
-    // New: Pagination looping if fetchAll is true
-    let allTranscripts: Transcript[] = transcripts;
-    let currentCursor = apiResponse.meta?.lifelogs?.nextCursor;
-    let totalFetched = transcripts.length;
-
-    if (fetchAll && currentCursor) {
-      console.log(`Fetching additional pages starting from cursor: ${currentCursor}`);
-      while (currentCursor) {
-        const nextResult = await fetchTranscripts(limit, currentCursor);  // Recursive call (efficient for small depths)
-        allTranscripts = [...allTranscripts, ...nextResult.transcripts];
-        currentCursor = nextResult.nextCursor;
-        totalFetched += nextResult.transcripts.length;
-        if (!currentCursor) break;
-      }
-    }
-
     return {
-      transcripts: allTranscripts,
-      nextCursor: fetchAll ? undefined : currentCursor,  // If fetchAll, no nextCursor needed
-      totalFetched,
+      transcripts,
+      nextCursor: apiResponse.meta?.lifelogs?.nextCursor,
     };
 
   } catch (error: any) {
     console.error('Error fetching lifelogs from Limitless API:', error);
     if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
-      let devMessage = '';
-      if (import.meta.env.DEV) {
-        devMessage = 'In development, this might also indicate a proxy configuration issue in `vite.config.ts`. ';
-      }
       throw new Error(
-        `Failed to fetch lifelogs. This could be due to a network connectivity issue or a CORS policy blocking the request. ${devMessage}` +
-        'Check your internet connection and the browser\'s developer console (Network tab) for more details. ' +
-        'If it is a CORS issue (less likely with a proxy), the target API server needs to allow requests from the proxy.'
+        'Failed to fetch lifelogs. This could be due to a network connectivity issue or a CORS (Cross-Origin Resource Sharing) policy blocking the request. ' +
+        'Please check your internet connection and the browser\'s developer console (Network tab) for more specific error details. ' +
+        'If it is a CORS issue, the Limitless API server (api.limitless.ai) needs to be configured to allow requests from your application\'s origin. ' +
+        'See https://www.limitless.ai/developers for API details.'
       );
     }
     throw error;
