@@ -26,7 +26,7 @@ export default defineConfig({
     },
     proxy: {
       '/api/limitless': {
-        target: 'https://api.limitless.ai/v1', // Corrected to actual Limitless API endpoint (was .com, but code suggests .ai)
+        target: 'https://api.limitless.ai', // Corrected to actual Limitless API endpoint (was .com, but code suggests .ai)
         changeOrigin: true,
         secure: false, // Set to true if your target API uses HTTPS and you trust its certificate
         rewrite: (path) => path.replace(/^\/api\/limitless/, ''), // Optional: if the target doesn't expect '/api/limitless' prefix
