@@ -12,8 +12,10 @@
     "test": "echo \"Test script not configured. Consider adding Vitest or Jest.\"",
     "test:e2e": "start-server-and-test preview http://localhost:4173 playwright test"
   },
-  "dependencies": {
+ "dependencies": {
     "@google/genai": "^1.6.0",
+    "@mui/material": "^5.16.4",  // Add this
+    "@mui/icons-material": "^5.16.4",  // Add this
     "@types/react-router-dom": "^5.3.3",
     "date-fns": "^4.1.0",
     "marked": "^16.0.0",
