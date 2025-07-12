@@ -10,19 +10,16 @@ import { fetchTranscripts } from '../services/limitlessApi'; // Correct: Relativ
 import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Correct: Relative to src/utils/dashboardAnalytics.ts
 import { Transcript } from '../types'; // Correct: Relative to src/types.ts
 
-import { ActivityHeatmap } from '../components/ActivityHeatmap'; // Fixed: Named import (matches export const in uploaded file)
-import { RecentActivityList } from '../components/RecentActivityList'; // Fixed: Named import (matches export const in uploaded file)
-import { TopSpeakers } from '../components/TopSpeakers'; // Assumed named (upload if error; matches pattern)
-import { ErrorBoundary } from '../components/ErrorBoundary'; // Assumed named (upload if error; matches pattern)
+import { ActivityHeatmap } from '../components/ActivityHeatmap'; // Correct: Named import (exists in components/)
+import { RecentActivityList } from '../components/RecentActivityList'; // Correct: Named import (exists in components/)
 
-// Note: Other uploaded components (e.g., { HourlyActivity } from '../components/HourlyActivity') aren't used here but can be added if needed (e.g., swap for ActivityHeatmap).
+// Note: Removed imports/usages for missing files (TopSpeakers, ErrorBoundary). Other components from screenshot (e.g., HourlyActivity) can be added if needed.
 
 const Dashboard: React.FC = () => {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
   const [analytics, setAnalytics] = useState({ // Processed analytics data for charts/lists
     sentimentTrend: [],
     activityHeatmap: [],
-    topSpeakers: [],
     recentActivities: [],
   });
   const [loading, setLoading] = useState(true); // Loading state for API fetches
@@ -41,7 +38,7 @@ const Dashboard: React.FC = () => {
 
       if (fetchedTranscripts.length === 0) {
         setError('No lifelogs found for the selected date. Try recording some with your Pendant or choose another date.');
-        setAnalytics({ sentimentTrend: [], activityHeatmap: [], topSpeakers: [], recentActivities: [] });
+        setAnalytics({ sentimentTrend: [], activityHeatmap: [], recentActivities: [] });
         return;
       }
 
@@ -53,13 +50,9 @@ const Dashboard: React.FC = () => {
       const activityHeatmapData = generateHourlyActivityData(fetchedTranscripts, '30d');
       const recentActivitiesData = getRecentActivity(fetchedTranscripts, 5, '7d');
 
-      // Placeholder for topSpeakers (not in dashboardAnalytics.ts; implement based on transcript data if available)
-      const topSpeakersData = []; // TODO: Add logic, e.g., parse speakers from transcript.content or add function to dashboardAnalytics.ts
-
       setAnalytics({
         sentimentTrend: sentimentResult.data || [], // From generateSentimentTrendData (kept for future use)
         activityHeatmap: activityHeatmapData || [], // From generateHourlyActivityData
-        topSpeakers: topSpeakersData,
         recentActivities: recentActivitiesData || [], // From getRecentActivity
       });
     } catch (err) {
@@ -80,57 +73,49 @@ const Dashboard: React.FC = () => {
   const memoizedAnalytics = useMemo(() => analytics, [analytics]); // Memoize to prevent unnecessary re-renders
 
   return (
-    <ErrorBoundary>
-      <Box sx={{ flexGrow: 1, p: 3, backgroundColor: 'background.default' }}>
-        <Typography variant="h4" gutterBottom>
-          Dashboard
+    <Box sx={{ flexGrow: 1, p: 3, backgroundColor: 'background.default' }}>
+      <Typography variant="h4" gutterBottom>
+        Dashboard
+      </Typography>
+
+      {/* Time Period Selector */}
+      <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <DatePicker
+          label="Select Date for Lifelogs"
+          value={selectedDate}
+          onChange={(newDate) => {
+            setSelectedDate(newDate);
+            loadAllData(); // Immediate refetch on date change
+          }}
+          slots={{ textField: (params) => <TextField {...params} sx={{ mb: 2 }} /> }}
+        />
+      </LocalizationProvider>
+
+      {loading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Typography color="error" variant="h6">
+          {error}
         </Typography>
-
-        {/* Time Period Selector */}
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <DatePicker
-            label="Select Date for Lifelogs"
-            value={selectedDate}
-            onChange={(newDate) => {
-              setSelectedDate(newDate);
-              loadAllData(); // Immediate refetch on date change
-            }}
-            slots={{ textField: (params) => <TextField {...params} sx={{ mb: 2 }} /> }}
-          />
-        </LocalizationProvider>
-
-        {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
-            <CircularProgress />
-          </Box>
-        ) : error ? (
-          <Typography color="error" variant="h6">
-            {error}
-          </Typography>
-        ) : (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
-                <Typography variant="h6">Activity Heatmap</Typography>
-                <ActivityHeatmap data={memoizedAnalytics.activityHeatmap} />
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 2 }}>
-                <Typography variant="h6">Recent Activities</Typography>
-                <RecentActivityList activities={memoizedAnalytics.recentActivities} />
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 2 }}>
-                <Typography variant="h6">Top Speakers</Typography>
-                <TopSpeakers speakers={memoizedAnalytics.topSpeakers} />
-              </Paper>
-            </Grid>
+      ) : (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
+              <Typography variant="h6">Activity Heatmap</Typography>
+              <ActivityHeatmap data={memoizedAnalytics.activityHeatmap} />
+            </Paper>
           </Grid>
-        )}
-      </Box>
-    </ErrorBoundary>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 2 }}>
+              <Typography variant="h6">Recent Activities</Typography>
+              <RecentActivityList activities={memoizedAnalytics.recentActivities} />
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+    </Box>
   );
 };
 
