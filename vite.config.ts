@@ -26,12 +26,16 @@ export default defineConfig({
     },
     proxy: {
       '/api/limitless': {
-        target: 'https://api.limitless.com/', // The actual API endpoint
+        target: 'https://api.limitless.ai/', // Corrected to actual Limitless API endpoint (was .com, but code suggests .ai)
         changeOrigin: true,
         secure: false, // Set to true if your target API uses HTTPS and you trust its certificate
         rewrite: (path) => path.replace(/^\/api\/limitless/, ''), // Optional: if the target doesn't expect '/api/limitless' prefix
       },
     },
+  },
+  optimizeDeps: {
+    // Force pre-bundling of React deps to avoid mangled exports in chunks (e.g., 'import_react3')
+    include: ['react', 'react-dom', 'react/jsx-runtime'],
   },
   build: {
     // Basic build optimizations: Disable sourcemaps in prod for smaller bundles
