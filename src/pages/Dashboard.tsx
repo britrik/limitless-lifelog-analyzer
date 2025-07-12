@@ -11,7 +11,7 @@ import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivi
 import { Transcript } from '../types'; // Correct: Relative to src/types.ts
 
 import ActivityHeatmap from '../components/ActivityHeatmap'; // Correct: Relative to src/components/ActivityHeatmap.tsx
-import SentimentTrendChart from '../components/SentimentTrendChart'; // Correct: Relative to src/components/SentimentTrendChart.tsx
+// import SentimentTrendChart from '../components/SentimentTrendChart'; // Removed: Component doesn't exist
 import RecentActivityList from '../components/RecentActivityList'; // Correct: Relative to src/components/RecentActivityList.tsx
 import TopSpeakers from '../components/TopSpeakers'; // Correct: Relative to src/components/TopSpeakers.tsx
 import ErrorBoundary from '../components/ErrorBoundary'; // Correct: Relative to src/components/ErrorBoundary.tsx
@@ -48,7 +48,7 @@ const Dashboard: React.FC = () => {
 
       // Process analytics using individual functions from dashboardAnalytics.ts
       // Use '30d' as default timeRange; can make this dynamic later
-      const sentimentResult = await generateSentimentTrendData(fetchedTranscripts, '30d');
+      const sentimentResult = await generateSentimentTrendData(fetchedTranscripts, '30d'); // Still process data (even if not displayed yet)
       const activityHeatmapData = generateHourlyActivityData(fetchedTranscripts, '30d');
       const recentActivitiesData = getRecentActivity(fetchedTranscripts, 5, '7d');
 
@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
       const topSpeakersData = []; // TODO: Add logic, e.g., parse speakers from transcript.content or add function to dashboardAnalytics.ts
 
       setAnalytics({
-        sentimentTrend: sentimentResult.data || [], // From generateSentimentTrendData
+        sentimentTrend: sentimentResult.data || [], // From generateSentimentTrendData (kept for future use)
         activityHeatmap: activityHeatmapData || [], // From generateHourlyActivityData
         topSpeakers: topSpeakersData,
         recentActivities: recentActivitiesData || [], // From getRecentActivity
@@ -108,12 +108,13 @@ const Dashboard: React.FC = () => {
           </Typography>
         ) : (
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            {/* Commented out: Sentiment Trend (component doesn't exist; uncomment and add SentimentTrendChart.tsx if implemented) */}
+            {/* <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
                 <Typography variant="h6">Sentiment Trend</Typography>
                 <SentimentTrendChart data={memoizedAnalytics.sentimentTrend} />
               </Paper>
-            </Grid>
+            </Grid> */}
             <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
                 <Typography variant="h6">Activity Heatmap</Typography>
