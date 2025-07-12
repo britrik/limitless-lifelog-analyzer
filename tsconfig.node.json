@@ -3,7 +3,12 @@
     "composite": true,
     "module": "ESNext",
     "moduleResolution": "Node",
-    "allowSyntheticDefaultImports": true
+    "target": "ESNext", // Explicit target for consistency with main tsconfig
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true, // Improves module interop (pairs well with allowSyntheticDefaultImports)
+    "strict": true, // Enables stricter type checking for Node files
+    "skipLibCheck": true, // Skips type checking of declaration files for faster compilation
+    "noEmit": true // No need to emit JS for config files
   },
   "include": ["vite.config.ts"]
 }
