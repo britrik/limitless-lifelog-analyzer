@@ -7,7 +7,7 @@ import TextField from '@mui/material/TextField';
 import { format } from 'date-fns';
 
 import { fetchTranscripts } from '../services/limitlessApi'; // Path to limitlessApi.ts (adjust if needed)
-import { processAnalytics } from './dashboard/utils/dashboardAnalytics'; // Path to dashboardAnalytics.ts (adjust if needed)
+import { processAnalytics } from '../utils/dashboardAnalytics'; // Corrected: Relative to src/utils/dashboardAnalytics.ts
 import { Transcript } from '../types';
 
 import ActivityHeatmap from './ActivityHeatmap';
@@ -60,9 +60,9 @@ const Dashboard: React.FC = () => {
       'Dashboard component mounted, initiating data load. Preserved features like Speaker Context are managed in their respective components (e.g., Lifelogs, TranscriptDetailModal).'
     );
     loadAllData();
-  }, [selectedDate]); // Auto-refetch when selectedDate changes (optimizes for reactivity)
+  }, [selectedDate]); // Auto-refetch when selectedDate changes
 
-  const memoizedAnalytics = useMemo(() => analytics, [analytics]); // Memoize analytics to prevent unnecessary re-renders
+  const memoizedAnalytics = useMemo(() => analytics, [analytics]); // Memoize to prevent unnecessary re-renders
 
   return (
     <ErrorBoundary>
