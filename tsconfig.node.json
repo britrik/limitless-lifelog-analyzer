@@ -7,7 +7,7 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "strict": true, 
-    "skipLibCheck": true,n
+    "skipLibCheck": true,
     "noEmit": true
   },
   "include": ["vite.config.ts"]
