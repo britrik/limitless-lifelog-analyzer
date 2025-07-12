@@ -9,7 +9,7 @@ if (!LIMITLESS_API_KEY) {
   );
 }
 
-const LIMITLESS_API_BASE_URL = "/api/limitless/v1"; // Updated to include /v1 for correct endpoint (proxies to https://api.limitless.ai/v1)
+const LIMITLESS_API_BASE_URL = "/api/limitless/v1"; // Includes /v1 for correct endpoint (proxies to https://api.limitless.ai/v1)
 
 interface Lifelog {
   id: string;
@@ -75,11 +75,6 @@ const handleApiResponse = async (response: Response) => {
   return response.json();
 };
 
-export interface FetchTranscriptsResult {
-  transcripts: Transcript[];
-  nextCursor?: string;
-}
-
 const fetchWithRetry = async (url: string, options: RequestInit, retries: number = 3): Promise<Response> => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -96,27 +91,16 @@ const fetchWithRetry = async (url: string, options: RequestInit, retries: number
   throw new Error(`Failed to fetch after ${retries} attempts. Check network or API status.`);
 };
 
+export interface FetchTranscriptsResult {
+  transcripts: Transcript[];
+  nextCursor?: string;
+}
+
 export const fetchTranscripts = async (
   limit: number = 10,
   cursor?: string,
   queryParams: { date?: string; start?: string; end?: string; timezone?: string } = {}
 ): Promise<FetchTranscriptsResult> => {
-  // ... (keep the existing key check and logging)
-
-  const params = new URLSearchParams({
-    limit: String(limit),
-    direction: 'desc',
-    includeMarkdown: 'true',
-  });
-
-  if (cursor) params.append('cursor', cursor);
-  if (queryParams.date) params.append('date', queryParams.date); // YYYY-MM-DD
-  if (queryParams.start) params.append('start', queryParams.start); // ISO-like datetime
-  if (queryParams.end) params.append('end', queryParams.end);
-  if (queryParams.timezone) params.append('timezone', queryParams.timezone); // e.g., 'Europe/London'
-
-  const url = `${LIMITLESS_API_BASE_URL}/lifelogs?${params.toString()}`;
-export const fetchTranscripts = async (limit: number = 10, cursor?: string): Promise<FetchTranscriptsResult> => {
   if (!LIMITLESS_API_KEY) {
     const errorMessage = "Limitless API Key is not configured. Please set VITE_LIMITLESS_API_KEY in your .env.local file.";
     console.error(errorMessage); // Keep console error for clarity
@@ -138,6 +122,18 @@ export const fetchTranscripts = async (limit: number = 10, cursor?: string): Pro
 
   if (cursor) {
     params.append('cursor', cursor);
+  }
+  if (queryParams.date) {
+    params.append('date', queryParams.date);
+  }
+  if (queryParams.start) {
+    params.append('start', queryParams.start);
+  }
+  if (queryParams.end) {
+    params.append('end', queryParams.end);
+  }
+  if (queryParams.timezone) {
+    params.append('timezone', queryParams.timezone);
   }
 
   const url = `${LIMITLESS_API_BASE_URL}/lifelogs?${params.toString()}`; // Now includes /v1/lifelogs
