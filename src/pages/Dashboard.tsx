@@ -15,7 +15,7 @@ import { RecentActivityList } from '../components/RecentActivityList'; // Correc
 
 // Note: Removed imports/usages for missing files (TopSpeakers, ErrorBoundary). Other components from screenshot (e.g., HourlyActivity) can be added if needed.
 
-const Dashboard: React.FC = () => {
+export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to match likely import in index.ts
   const [transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
   const [analytics, setAnalytics] = useState({ // Processed analytics data for charts/lists
     sentimentTrend: [],
@@ -118,5 +118,3 @@ const Dashboard: React.FC = () => {
     </Box>
   );
 };
-
-export default Dashboard;
