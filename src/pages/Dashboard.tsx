@@ -6,8 +6,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import TextField from '@mui/material/TextField';
 import { format } from 'date-fns';
 
-import { fetchTranscripts } from '../api/limitlessApi'; // Assuming limitlessApi is in src/api; adjust if needed (e.g., to './limitlessApi' if in src/pages)
-import { processAnalytics } from './dashboardAnalytics'; // Updated: Same folder (src/pages), so './'
+import { fetchTranscripts } from '../services/limitlessApi'; // Assuming limitlessApi is in src/services; adjust if needed (e.g., to './limitlessApi' if in src/pages)
+import { processAnalytics } from './dashboard/utils/dashboardAnalytics'; // Updated: Relative to src/pages/dashboard/utils
 import { Transcript } from '../types';
 
 import ActivityHeatmap from './ActivityHeatmap';
