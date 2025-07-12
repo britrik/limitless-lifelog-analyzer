@@ -7,7 +7,7 @@ import TextField from '@mui/material/TextField';
 import { format } from 'date-fns';
 
 import { fetchTranscripts } from '../services/limitlessApi'; // Path to limitlessApi.ts (adjust if needed)
-import { processAnalytics } from '../utils/dashboardAnalytics'; // Corrected: Relative to src/utils/dashboardAnalytics.ts
+import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Import actual named exports from the file
 import { Transcript } from '../types';
 
 import ActivityHeatmap from './ActivityHeatmap';
@@ -40,15 +40,29 @@ const Dashboard: React.FC = () => {
 
       if (fetchedTranscripts.length === 0) {
         setError('No lifelogs found for the selected date. Try recording some with your Pendant or choose another date.');
+        setAnalytics({ sentimentTrend: [], activityHeatmap: [], topSpeakers: [], recentActivities: [] });
+        return;
       }
 
       setTranscripts(fetchedTranscripts);
 
-      // Process analytics from fetched data
-      const processedAnalytics = processAnalytics(fetchedTranscripts);
-      setAnalytics(processedAnalytics);
+      // Process analytics using individual functions from dashboardAnalytics.ts
+      // Use '30d' as default timeRange; can make this dynamic later
+      const sentimentResult = await generateSentimentTrendData(fetchedTranscripts, '30d');
+      const activityHeatmapData = generateHourlyActivityData(fetchedTranscripts, '30d');
+      const recentActivitiesData = getRecentActivity(fetchedTranscripts, 5, '7d');
+
+      // Placeholder for topSpeakers (not in dashboardAnalytics.ts; implement based on transcript data if available)
+      const topSpeakersData = []; // TODO: Add logic, e.g., parse speakers from transcript.content or add function to dashboardAnalytics.ts
+
+      setAnalytics({
+        sentimentTrend: sentimentResult.data || [], // From generateSentimentTrendData
+        activityHeatmap: activityHeatmapData || [], // From generateHourlyActivityData
+        topSpeakers: topSpeakersData,
+        recentActivities: recentActivitiesData || [], // From getRecentActivity
+      });
     } catch (err) {
-      console.error('Dashboard: Failed to fetch transcripts:', err);
+      console.error('Dashboard: Failed to fetch or process data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data. Please check your API key and network connection.');
     } finally {
       setLoading(false);
