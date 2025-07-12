@@ -10,11 +10,12 @@ import { fetchTranscripts } from '../services/limitlessApi'; // Correct: Relativ
 import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Correct: Relative to src/utils/dashboardAnalytics.ts
 import { Transcript } from '../types'; // Correct: Relative to src/types.ts
 
-import ActivityHeatmap from '../components/ActivityHeatmap'; // Correct: Relative to src/components/ActivityHeatmap.tsx
-// import SentimentTrendChart from '../components/SentimentTrendChart'; // Removed: Component doesn't exist
-import RecentActivityList from '../components/RecentActivityList'; // Correct: Relative to src/components/RecentActivityList.tsx
-import TopSpeakers from '../components/TopSpeakers'; // Correct: Relative to src/components/TopSpeakers.tsx
-import ErrorBoundary from '../components/ErrorBoundary'; // Correct: Relative to src/components/ErrorBoundary.tsx
+import { ActivityHeatmap } from '../components/ActivityHeatmap'; // Fixed: Named import (matches export const in uploaded file)
+import { RecentActivityList } from '../components/RecentActivityList'; // Fixed: Named import (matches export const in uploaded file)
+import { TopSpeakers } from '../components/TopSpeakers'; // Assumed named (upload if error; matches pattern)
+import { ErrorBoundary } from '../components/ErrorBoundary'; // Assumed named (upload if error; matches pattern)
+
+// Note: Other uploaded components (e.g., { HourlyActivity } from '../components/HourlyActivity') aren't used here but can be added if needed (e.g., swap for ActivityHeatmap).
 
 const Dashboard: React.FC = () => {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
@@ -108,13 +109,6 @@ const Dashboard: React.FC = () => {
           </Typography>
         ) : (
           <Grid container spacing={3}>
-            {/* Commented out: Sentiment Trend (component doesn't exist; uncomment and add SentimentTrendChart.tsx if implemented) */}
-            {/* <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
-                <Typography variant="h6">Sentiment Trend</Typography>
-                <SentimentTrendChart data={memoizedAnalytics.sentimentTrend} />
-              </Paper>
-            </Grid> */}
             <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
                 <Typography variant="h6">Activity Heatmap</Typography>
