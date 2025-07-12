@@ -6,7 +6,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import TextField from '@mui/material/TextField';
 import { format } from 'date-fns';
 
-import { fetchTranscripts } from '../api/limitlessApi';
+import { fetchTranscripts } from '../services/limitlessApi';
 import { processAnalytics } from '../analytics/dashboardAnalytics';
 import { Transcript } from '../types';
 
