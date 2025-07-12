@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { FC, memo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -13,6 +13,7 @@ interface NavItem {
   description?: string;
 }
 
+// Move navItems outside the component to avoid recreating on re-renders
 const navItems: NavItem[] = [
   {
     path: '/',
@@ -48,7 +49,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+const SidebarComponent: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
 
   return (
@@ -148,4 +149,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       </div>
     </>
   );
+};
+
+// Memoize for performance (prevents unnecessary re-renders)
+const Sidebar = memo(SidebarComponent);
+
+export default Sidebar;
 };
