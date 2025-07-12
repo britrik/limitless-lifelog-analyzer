@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, forwardRef } from 'react';
 import { Grid, Typography, Paper, Box, CircularProgress } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -36,6 +36,8 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
         timezone: 'Europe/London', // Default timezone; adjust based on user location
       });
 
+      console.log('Fetched transcripts:', fetchedTranscripts); // Added for debugging API responses
+
       if (fetchedTranscripts.length === 0) {
         setError('No lifelogs found for the selected date. Try recording some with your Pendant or choose another date.');
         setAnalytics({ sentimentTrend: [], activityHeatmap: [], recentActivities: [] });
@@ -72,6 +74,11 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
 
   const memoizedAnalytics = useMemo(() => analytics, [analytics]); // Memoize to prevent unnecessary re-renders
 
+  // Custom textField with forwardRef to handle refs properly
+  const CustomTextField = forwardRef((props, ref) => (
+    <TextField {...props} ref={ref} sx={{ mb: 2 }} />
+  ));
+
   return (
     <Box sx={{ flexGrow: 1, p: 3, backgroundColor: 'background.default' }}>
       <Typography variant="h4" gutterBottom>
@@ -83,11 +90,9 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
         <DatePicker
           label="Select Date for Lifelogs"
           value={selectedDate}
-          onChange={(newDate) => {
-            setSelectedDate(newDate);
-            loadAllData(); // Immediate refetch on date change
-          }}
-          slots={{ textField: (params) => <TextField {...params} sx={{ mb: 2 }} /> }}
+          onChange={(newDate) => setSelectedDate(newDate)} // Removed duplicate loadAllData() - useEffect handles it
+          enableAccessibleFieldDOMStructure={false} // Fix for sectionListRef error when using custom textField with <input>
+          slots={{ textField: CustomTextField }} // Use forwarded ref component
         />
       </LocalizationProvider>
 
