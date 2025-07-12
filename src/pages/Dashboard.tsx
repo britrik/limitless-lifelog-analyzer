@@ -6,8 +6,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import TextField from '@mui/material/TextField';
 import { format } from 'date-fns';
 
-import { fetchTranscripts } from '../services/limitlessApi'; // Assuming limitlessApi is in src/services; adjust if needed (e.g., to './limitlessApi' if in src/pages)
-import { processAnalytics } from './dashboard/utils/dashboardAnalytics'; // Updated: Relative to src/pages/dashboard/utils
+import { fetchTranscripts } from '../services/limitlessApi'; // Path to limitlessApi.ts (adjust if needed)
+import { processAnalytics } from './dashboard/utils/dashboardAnalytics'; // Path to dashboardAnalytics.ts (adjust if needed)
 import { Transcript } from '../types';
 
 import ActivityHeatmap from './ActivityHeatmap';
@@ -17,26 +17,26 @@ import TopSpeakers from './TopSpeakers';
 import ErrorBoundary from './ErrorBoundary';
 
 const Dashboard: React.FC = () => {
-  const [transcripts, setTranscripts] = useState<Transcript[]>([]);
-  const [analytics, setAnalytics] = useState({
+  const [transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
+  const [analytics, setAnalytics] = useState({ // Processed analytics data for charts/lists
     sentimentTrend: [],
     activityHeatmap: [],
     topSpeakers: [],
     recentActivities: [],
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date()); // Default to today
+  const [loading, setLoading] = useState(true); // Loading state for API fetches
+  const [error, setError] = useState<string | null>(null); // Error messages for UI
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date()); // Date for filtering lifelogs
 
   const loadAllData = async () => {
     setLoading(true);
     setError(null);
     try {
+      // Fetch transcripts with optional date and timezone filters
       const { transcripts: fetchedTranscripts } = await fetchTranscripts(100, undefined, {
-        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
-        timezone: 'Europe/London', // Adjust to your timezone if needed
+        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined, // Format to API-expected YYYY-MM-DD
+        timezone: 'Europe/London', // Default timezone; adjust based on user location
       });
-      console.log('Fetched transcripts:', fetchedTranscripts); // Temp log for debugging
 
       if (fetchedTranscripts.length === 0) {
         setError('No lifelogs found for the selected date. Try recording some with your Pendant or choose another date.');
@@ -44,11 +44,12 @@ const Dashboard: React.FC = () => {
 
       setTranscripts(fetchedTranscripts);
 
+      // Process analytics from fetched data
       const processedAnalytics = processAnalytics(fetchedTranscripts);
       setAnalytics(processedAnalytics);
     } catch (err) {
       console.error('Dashboard: Failed to fetch transcripts:', err);
-      setError('Failed to load data. Please check your API key and network connection.');
+      setError(err instanceof Error ? err.message : 'Failed to load data. Please check your API key and network connection.');
     } finally {
       setLoading(false);
     }
@@ -59,9 +60,9 @@ const Dashboard: React.FC = () => {
       'Dashboard component mounted, initiating data load. Preserved features like Speaker Context are managed in their respective components (e.g., Lifelogs, TranscriptDetailModal).'
     );
     loadAllData();
-  }, []);
+  }, [selectedDate]); // Auto-refetch when selectedDate changes (optimizes for reactivity)
 
-  const memoizedAnalytics = useMemo(() => analytics, [analytics]);
+  const memoizedAnalytics = useMemo(() => analytics, [analytics]); // Memoize analytics to prevent unnecessary re-renders
 
   return (
     <ErrorBoundary>
@@ -70,14 +71,14 @@ const Dashboard: React.FC = () => {
           Dashboard
         </Typography>
 
-        {/* Restored Time Period Selector */}
+        {/* Time Period Selector */}
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <DatePicker
             label="Select Date for Lifelogs"
             value={selectedDate}
             onChange={(newDate) => {
               setSelectedDate(newDate);
-              loadAllData(); // Refetch with new date
+              loadAllData(); // Immediate refetch on date change
             }}
             slots={{ textField: (params) => <TextField {...params} sx={{ mb: 2 }} /> }}
           />
@@ -94,13 +95,13 @@ const Dashboard: React.FC = () => {
         ) : (
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 2, height: 300 }}>
+              <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
                 <Typography variant="h6">Sentiment Trend</Typography>
                 <SentimentTrendChart data={memoizedAnalytics.sentimentTrend} />
               </Paper>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 2, height: 300 }}>
+              <Paper elevation={3} sx={{ p: 2, minHeight: 300 }}>
                 <Typography variant="h6">Activity Heatmap</Typography>
                 <ActivityHeatmap data={memoizedAnalytics.activityHeatmap} />
               </Paper>
