@@ -15,7 +15,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    // Your added baseUrl and paths (merged properly)
+    "noImplicitAny": true, // Explicit for stricter type checking
+    "noImplicitReturns": true, // Ensures functions always return values
+    "forceConsistentCasingInFileNames": true, // Prevents case-sensitivity issues
+    "esModuleInterop": true, // Better handling of CommonJS/ES module interop
+    "allowSyntheticDefaultImports": true, // Allows default imports from modules without default exports
     "baseUrl": "src",
     "paths": {
       "components/*": ["components/*"],
