@@ -23,12 +23,10 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   showGrid = true,
   showTooltip = true,
   selectedGroupBy,
-  onGroupByChange,
-  timeRange
+  onGroupByChange
 }: AnalyticsChartProps & {
   selectedGroupBy?: 'day' | 'week' | 'month';
   onGroupByChange?: (groupBy: 'day' | 'week' | 'month') => void;
-  timeRange?: '7d' | '30d' | '90d' | 'all';
 }) => {
   // Defensive fallback for chartResponse
   const { data: chartData, status, message } = chartResponse || { data: [], status: 'loading', message: 'Chart data is being loaded...' };

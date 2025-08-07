@@ -162,7 +162,7 @@ export const performAnalysis = async (
       throw new Error('No response text received from Gemini API');
     }
 
-    let analysisResultData: any;
+  let analysisResultData: unknown;
     if (config.requiresJson) {
       analysisResultData = parseJsonFromText(responseText);
     } else {

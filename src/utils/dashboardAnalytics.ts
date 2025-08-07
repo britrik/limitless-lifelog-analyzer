@@ -1,5 +1,5 @@
 import { parseISO, isWithinInterval, subDays, format, startOfDay, startOfWeek, startOfMonth, differenceInMinutes } from 'date-fns';
-import { Transcript, AnalysisType, ChartDataPoint, ChartDataResponse } from '../types';
+import { Transcript, AnalysisType, ChartDataResponse } from '../types';
 import { performAnalysis } from '../services/geminiService';
 
 // Cache for sentiment analysis results
@@ -40,7 +40,7 @@ export interface DashboardMetrics {
 }
 
 // Type guard for DashboardMetrics
-export function isValidDashboardMetrics(metrics: any): metrics is DashboardMetrics {
+export function isValidDashboardMetrics(metrics: unknown): metrics is DashboardMetrics {
   return (
     metrics &&
     typeof metrics.totalRecordings === 'number' &&
