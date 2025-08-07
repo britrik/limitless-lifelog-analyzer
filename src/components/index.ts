@@ -11,7 +11,7 @@ export { LoadingSpinner } from './LoadingSpinner';
 export { MarkdownRenderer } from './MarkdownRenderer';
 export { MetricCard } from './MetricCard';
 export { RecentActivityList } from './RecentActivityList';
-export { Sidebar } from './Sidebar';
+export { default as Sidebar } from './Sidebar';
 export { SpeakerProfileForm } from './SpeakerProfileForm';
 export { TopicsCloud } from './TopicsCloud';
 export { TranscriptDetailModal } from './TranscriptDetailModal';

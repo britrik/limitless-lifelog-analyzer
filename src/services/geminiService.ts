@@ -1,6 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse, GenerateContentParameters, Part } from "@google/genai";
 import { GEMINI_MODEL_NAME, ANALYSIS_TYPE_CONFIG } from '../constants';
-import type { AnalysisType, GroundingMetadata, SpeakerContextState } from '../types';
+import { AnalysisType } from '../types';
+import type { GroundingMetadata, SpeakerContextState } from '../types';
 
 // Get Gemini API key from Vite environment variable
 const apiKey = import.meta.env.VITE_API_KEY;
