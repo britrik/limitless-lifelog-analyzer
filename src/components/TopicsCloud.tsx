@@ -152,7 +152,7 @@ export const TopicsCloud: React.FC<TopicsCloudProps> = ({
 
       <div className="mt-4 pt-4 border-t border-slate-700">
         <div className="flex items-center justify-between text-sm text-slate-400">
-          <span>Most frequent: "{topics[0]?.text}" ({topics[0]?.count})</span>
+          <span>Most frequent: &quot;{topics[0]?.text}&quot; ({topics[0]?.count})</span>
           <span>Click topics to filter transcripts</span>
         </div>
       </div>

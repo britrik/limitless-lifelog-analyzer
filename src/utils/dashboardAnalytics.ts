@@ -58,13 +58,18 @@ export function isValidDashboardMetrics(metrics: any): metrics is DashboardMetri
   );
 }
 
+import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween'; // Import isBetween plugin
+dayjs.extend(isBetween); // Extend dayjs with the plugin
+
 export interface TimeRangeFilter {
   label: string;
-  value: '7d' | '30d' | '90d' | 'all';
-  days?: number;
+  value: '24h' | '7d' | '30d' | '90d' | 'all';
+  days?: number; // days will not be relevant for '24h' in the same way, but kept for structure
 }
 
 export const TIME_RANGES: TimeRangeFilter[] = [
+  { label: '24 hours', value: '24h' }, // No 'days' needed here as it's handled differently
   { label: '7 days', value: '7d', days: 7 },
   { label: '30 days', value: '30d', days: 30 },
   { label: '90 days', value: '90d', days: 90 },
@@ -112,13 +117,29 @@ const hasAnalysis = (transcript: Transcript): boolean => {
 // Filter transcripts by time range
 export const filterTranscriptsByTimeRange = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all'
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all'
 ): Transcript[] => {
   if (timeRange === 'all') return transcripts;
 
-  const now = new Date();
-  const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-  const startDate = subDays(now, days);
+  if (timeRange === '24h') {
+    const endTime = dayjs(); // now
+    const startTime = endTime.subtract(24, 'hour');
+    return transcripts.filter(transcript => {
+      try {
+        const date = dayjs(transcript.date); // Use dayjs to parse
+        return date.isBetween(startTime, endTime, null, '[)'); // [) includes start, excludes end
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  // Handle '7d', '30d', '90d'
+  const now = new Date(); // date-fns works with Date objects
+  const daysToSubtract = TIME_RANGES.find(tr => tr.value === timeRange)?.days || 0;
+  if (daysToSubtract === 0) return transcripts; // Should not happen if timeRange is valid and not 'all' or '24h'
+
+  const startDate = subDays(now, daysToSubtract);
 
   return transcripts.filter(transcript => {
     const date = safeParseISO(transcript.date, transcript.id);
@@ -129,7 +150,7 @@ export const filterTranscriptsByTimeRange = (
 // Calculate dashboard metrics with single reduce
 export const calculateDashboardMetrics = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all'
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all'
 ): DashboardMetrics => {
   const filteredTranscripts = filterTranscriptsByTimeRange(transcripts, timeRange);
   let invalidDateCount = 0;
@@ -260,24 +281,49 @@ const groupTranscriptsByPeriod = <T>(
 // Generate chart data for activity over time
 export const generateActivityChartData = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: GroupBy
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all',
+  customGroupBy?: GroupBy | 'hour'
 ): ChartDataResponse => {
   const filtered = filterTranscriptsByTimeRange(transcripts, timeRange);
   if (filtered.length === 0) {
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  const groupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
+  const inferredGroupBy: GroupBy = getGroupByFromTimeRange(timeRange === '24h' ? '7d' : timeRange);
+  const groupBy = (customGroupBy ?? (timeRange === '24h' ? 'hour' : inferredGroupBy)) as GroupBy | 'hour';
+
+  if (groupBy === 'hour') {
+    const nowHour = dayjs().startOf('hour');
+    const buckets: Record<string, { count: number; sortDate: Date; label: string }> = {};
+    for (let i = 0; i < 24; i++) {
+      const hour = nowHour.subtract(i, 'hour');
+      const key = hour.valueOf().toString();
+      buckets[key] = { count: 0, sortDate: hour.toDate(), label: hour.format('MMM D, h A') };
+    }
+    filtered.forEach(t => {
+      const d = dayjs(t.date);
+      if (!d.isValid()) return;
+      const h = d.startOf('hour');
+      const key = h.valueOf().toString();
+      if (!buckets[key]) buckets[key] = { count: 0, sortDate: h.toDate(), label: h.format('MMM D, h A') };
+      buckets[key].count += 1;
+    });
+    const data = Object.values(buckets)
+      .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime())
+      .map(({ label, count }) => ({ date: label, value: count, label: `${count} recording${count !== 1 ? 's' : ''}` }));
+    const status = data.length ? 'success' : 'no-data';
+    return { data, status, message: status === 'no-data' ? 'No activity data to display.' : undefined };
+  }
+
   const { groups } = groupTranscriptsByPeriod(
     filtered,
-    groupBy,
+    groupBy as GroupBy,
     (t, current: Transcript[]) => [...current, t],
     () => []
   );
 
   const data = Object.entries(groups)
-    .map(([date, { data: ts, sortDate }]) => ({
+    .map(([date, { data: ts }]) => ({
       date,
       value: ts.length,
       label: `${ts.length} recording${ts.length !== 1 ? 's' : ''}`,
@@ -291,24 +337,52 @@ export const generateActivityChartData = (
 // Generate duration chart data
 export const generateDurationChartData = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: GroupBy
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all',
+  customGroupBy?: GroupBy | 'hour'
 ): ChartDataResponse => {
   const filtered = filterTranscriptsByTimeRange(transcripts, timeRange);
   if (filtered.length === 0) {
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  const groupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
+  const inferredGroupBy: GroupBy = getGroupByFromTimeRange(timeRange === '24h' ? '7d' : timeRange);
+  const groupBy = (customGroupBy ?? (timeRange === '24h' ? 'hour' : inferredGroupBy)) as GroupBy | 'hour';
+
+  if (groupBy === 'hour') {
+    const nowHour = dayjs().startOf('hour');
+    const buckets: Record<string, { duration: number; sortDate: Date; label: string }> = {};
+    for (let i = 0; i < 24; i++) {
+      const hour = nowHour.subtract(i, 'hour');
+      const key = hour.valueOf().toString();
+      buckets[key] = { duration: 0, sortDate: hour.toDate(), label: hour.format('MMM D, h A') };
+    }
+    filtered.forEach(t => {
+      const d = dayjs(t.date);
+      if (!d.isValid()) return;
+      const h = d.startOf('hour');
+      const key = h.valueOf().toString();
+      if (!buckets[key]) buckets[key] = { duration: 0, sortDate: h.toDate(), label: h.format('MMM D, h A') };
+      buckets[key].duration += estimateDuration(t);
+    });
+    const data = Object.values(buckets)
+      .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime())
+      .map(({ label, duration }) => {
+        const value = isNaN(duration) ? 0 : Math.round(duration * 10) / 10;
+        return { date: label, value, label: `${value} hours` };
+      });
+    const status = data.length ? 'success' : 'no-data';
+    return { data, status, message: status === 'no-data' ? 'No duration data to display.' : undefined };
+  }
+
   const { groups } = groupTranscriptsByPeriod(
     filtered,
-    groupBy,
+    groupBy as GroupBy,
     (t, current: number) => current + estimateDuration(t),
     () => 0
   );
 
   const data = Object.entries(groups)
-    .map(([date, { data: duration, sortDate }]) => {
+    .map(([date, { data: duration }]) => {
       const value = isNaN(duration) ? 0 : Math.round(duration * 10) / 10;
       return { date, value, label: `${value} hours` };
     })
@@ -331,7 +405,7 @@ export interface ActivityItem {
 export const getRecentActivity = (
   transcripts: Transcript[],
   limit: number = 5,
-  timeRange: '7d' | '30d' | '90d' | 'all' = '7d'
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all' = '7d'
 ): ActivityItem[] => {
   const recent = filterTranscriptsByTimeRange(transcripts, timeRange)
     .map(t => ({ ...t, parsedDate: safeParseISO(t.date, t.id) }))
@@ -404,18 +478,49 @@ export const getRecentActivity = (
 // Generate conversation density chart data (WPM over time)
 export const generateConversationDensityData = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: GroupBy
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all',
+  customGroupBy?: GroupBy | 'hour'
 ): ChartDataResponse => {
   const filtered = filterTranscriptsByTimeRange(transcripts, timeRange);
   if (filtered.length === 0) {
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  const groupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
+  const inferredGroupBy: GroupBy = getGroupByFromTimeRange(timeRange === '24h' ? '7d' : timeRange);
+  const groupBy = (customGroupBy ?? (timeRange === '24h' ? 'hour' : inferredGroupBy)) as GroupBy | 'hour';
+
+  if (groupBy === 'hour') {
+    const nowHour = dayjs().startOf('hour');
+    const buckets: Record<string, { totalWords: number; totalMinutes: number; sortDate: Date; label: string }> = {};
+    for (let i = 0; i < 24; i++) {
+      const hour = nowHour.subtract(i, 'hour');
+      const key = hour.valueOf().toString();
+      buckets[key] = { totalWords: 0, totalMinutes: 0, sortDate: hour.toDate(), label: hour.format('MMM D, h A') };
+    }
+    filtered.forEach(t => {
+      const words = Math.round(t.content.length / 5);
+      const minutes = Math.max(1, estimateDuration(t) * 60);
+      const d = dayjs(t.date);
+      if (!d.isValid()) return;
+      const h = d.startOf('hour');
+      const key = h.valueOf().toString();
+      if (!buckets[key]) buckets[key] = { totalWords: 0, totalMinutes: 0, sortDate: h.toDate(), label: h.format('MMM D, h A') };
+      buckets[key].totalWords += words;
+      buckets[key].totalMinutes += minutes;
+    });
+    const data = Object.values(buckets)
+      .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime())
+      .map(({ label, totalWords, totalMinutes }) => {
+        const value = totalMinutes > 0 ? Math.round((totalWords / totalMinutes) * 10) / 10 : 0;
+        return { date: label, value, label: `${value} WPM` };
+      });
+    const status = data.length ? 'success' : 'no-data';
+    return { data, status, message: status === 'no-data' ? 'No density data to display.' : undefined };
+  }
+
   const { groups } = groupTranscriptsByPeriod(
     filtered,
-    groupBy,
+    groupBy as GroupBy,
     (t, current: { totalWords: number; totalMinutes: number }) => {
       const wordCount = Math.round(t.content.length / 5);
       const minutes = Math.max(1, estimateDuration(t) * 60);
@@ -425,7 +530,7 @@ export const generateConversationDensityData = (
   );
 
   const data = Object.entries(groups)
-    .map(([date, { data: { totalWords, totalMinutes }, sortDate }]) => {
+    .map(([date, { data: { totalWords, totalMinutes } }]) => {
       const wpm = totalMinutes > 0 ? totalWords / totalMinutes : 0;
       const value = Math.round(wpm * 10) / 10;
       return { date, value, label: `${value} WPM` };
@@ -439,7 +544,7 @@ export const generateConversationDensityData = (
 // Generate hourly activity pattern data
 export const generateHourlyActivityData = (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all'
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all'
 ): Array<{ hour: number; activity: number; label: string }> => {
   const filtered = filterTranscriptsByTimeRange(transcripts, timeRange);
   if (filtered.length === 0) return [];
@@ -476,20 +581,19 @@ export const generateHourlyActivityData = (
 // Generate sentiment trend data
 export const generateSentimentTrendData = async (
   transcripts: Transcript[],
-  timeRange: '7d' | '30d' | '90d' | 'all',
-  customGroupBy?: GroupBy
+  timeRange: '24h' | '7d' | '30d' | '90d' | 'all',
+  customGroupBy?: GroupBy | 'hour'
 ): Promise<ChartDataResponse> => {
   const filtered = filterTranscriptsByTimeRange(transcripts, timeRange);
   if (filtered.length === 0) {
     return { data: [], status: 'no-data', message: 'No transcripts found for the selected period.' };
   }
 
-  const groupBy = customGroupBy ?? getGroupByFromTimeRange(timeRange);
+  const inferredGroupBy: GroupBy = getGroupByFromTimeRange(timeRange === '24h' ? '7d' : timeRange);
+  const groupBy = (customGroupBy ?? (timeRange === '24h' ? 'hour' : inferredGroupBy)) as GroupBy | 'hour';
 
-  // Process sentiments async (batch for perf, but simple Promise.all here)
   const processTranscriptSentiment = async (transcript: Transcript): Promise<number> => {
     if (sentimentCache.has(transcript.id)) return sentimentCache.get(transcript.id) ?? 0;
-
     try {
       const result = await performAnalysis(transcript.content, AnalysisType.SENTIMENT);
       const score = typeof result.data?.score === 'number' ? result.data.score : 0;
@@ -503,13 +607,38 @@ export const generateSentimentTrendData = async (
     }
   };
 
-  // Get sentiments in parallel
   const sentiments = await Promise.all(filtered.map(async t => ({ transcript: t, score: await processTranscriptSentiment(t) })));
 
-  // Group using utility
+  if (groupBy === 'hour') {
+    const nowHour = dayjs().startOf('hour');
+    const buckets: Record<string, { sum: number; count: number; sortDate: Date; label: string }> = {};
+    for (let i = 0; i < 24; i++) {
+      const hour = nowHour.subtract(i, 'hour');
+      const key = hour.valueOf().toString();
+      buckets[key] = { sum: 0, count: 0, sortDate: hour.toDate(), label: hour.format('MMM D, h A') };
+    }
+    sentiments.forEach(({ transcript, score }) => {
+      const d = dayjs(transcript.date);
+      if (!d.isValid()) return;
+      const h = d.startOf('hour');
+      const key = h.valueOf().toString();
+      if (!buckets[key]) buckets[key] = { sum: 0, count: 0, sortDate: h.toDate(), label: h.format('MMM D, h A') };
+      buckets[key].sum += score;
+      buckets[key].count += 1;
+    });
+    const data = Object.values(buckets)
+      .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime())
+      .map(({ label, sum, count }) => {
+        const value = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+        return { date: label, value, label: `${value} sentiment score` };
+      });
+    const status = data.length ? 'success' : 'no-data';
+    return { data, status, message: status === 'no-data' ? 'No sentiment data to display.' : undefined };
+  }
+
   const { groups, skipped } = groupTranscriptsByPeriod(
     sentiments.map(({ transcript, score }) => ({ ...transcript, score } as Transcript & { score: number })),
-    groupBy,
+    groupBy as GroupBy,
     (t, current: { sum: number; count: number }) => ({ sum: current.sum + t.score, count: current.count + 1 }),
     () => ({ sum: 0, count: 0 })
   );
@@ -519,13 +648,12 @@ export const generateSentimentTrendData = async (
   }
 
   const data = Object.entries(groups)
-    .map(([date, { data: { sum, count }, sortDate }]) => {
-      const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
-      return { date, value: avg, label: `${avg} sentiment score` };
+    .map(([date, { data: { sum, count } }]) => {
+      const value = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+      return { date, value, label: `${value} sentiment score` };
     })
     .sort((a, b) => groups[a.date].sortDate.getTime() - groups[b.date].sortDate.getTime());
 
   const status = data.length ? 'success' : 'no-data';
   return { data, status, message: status === 'no-data' ? 'No sentiment data to display.' : undefined };
 };
-

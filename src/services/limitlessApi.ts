@@ -36,7 +36,7 @@ interface LifelogsApiResponse {
 const generateSummarySnippet = (markdown: string, maxLength: number = 150): string => {
   if (!markdown) return 'No content available for summary.';
   
-  let plainText = markdown
+  const plainText = markdown
     .replace(/#{1,6}\s*(.*)/g, '$1') 
     .replace(/(\*\*|__)(.*?)\1/g, '$2') 
     .replace(/(\*|_)(.*?)\1/g, '$2')    
@@ -171,9 +171,9 @@ export const fetchTranscripts = async (
       nextCursor: apiResponse.meta?.lifelogs?.nextCursor,
     };
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching lifelogs from Limitless API:', error);
-    if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
+    if (error instanceof TypeError && (error as TypeError).message.toLowerCase().includes('failed to fetch')) {
       throw new Error(
         'Failed to fetch lifelogs. This could be due to a network connectivity issue or a CORS (Cross-Origin Resource Sharing) policy blocking the request. ' +
         'Please check your internet connection and the browser\'s developer console (Network tab) for more specific error details. ' +

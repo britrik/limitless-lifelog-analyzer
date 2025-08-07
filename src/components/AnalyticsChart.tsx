@@ -2,7 +2,15 @@ import React from 'react';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { ChartDataPoint, ChartDataResponse } from '../../types'; // Import new types
 
+<<<<<<< HEAD
 // ChartDataPoint is now imported from types.ts
+=======
+export interface ChartDataPoint {
+  date: string; // Using string as current data prep provides formatted date/time strings
+  value: number;
+  label: string; // Label is always provided by current data generation functions
+}
+>>>>>>> origin/feat/playwright-dashboard-smoke-tests
 
 interface AnalyticsChartProps {
   chartResponse: ChartDataResponse; // Changed from 'data' to 'chartResponse'

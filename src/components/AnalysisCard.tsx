@@ -6,9 +6,11 @@ import { ErrorDisplay } from './ErrorDisplay';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ANALYSIS_TYPE_CONFIG } from '../constants';
 
+import { AnalysisContent } from '../types';
+
 interface AnalysisCardProps {
   analysisType: AnalysisType;
-  data: any; // string for summary/sentiment, string[] for topics/actionItems
+  data: AnalysisContent[AnalysisType] | null | undefined;
   isLoading: boolean;
   error: string | null;
   groundingMetadata: GroundingMetadata | null;
@@ -69,9 +71,14 @@ export const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysisType, data, 
     // which will intelligently detect and render markdown or plain text
     if (typeof data === 'string') {
       return <MarkdownRenderer content={data} />;
+    } else {
+      // This case should ideally not be reached if data conforms to AnalysisContent
+      // and all analysis types are handled above. This is to satisfy TypeScript
+      // and provide a fallback for unexpected data shapes.
+      console.warn("AnalysisCard: Unexpected data type for rendering:", data, "for type:", analysisType);
+      return <p className="text-gray-400 italic">Preview not available for this data type.</p>;
     }
-
-    return <p className="text-gray-300 text-sm whitespace-pre-wrap">{data}</p>;
+    // The original problematic fallback <p>{data}</p> is removed by this structure.
   };
 
   const renderGrounding = () => {

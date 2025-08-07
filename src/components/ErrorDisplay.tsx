@@ -21,7 +21,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ message, onRetry, is
       {isCorsError && (
         <div className="mt-3 text-xs p-3 bg-yellow-900 bg-opacity-40 border border-yellow-700 rounded-md text-yellow-300">
           <p className="font-semibold mb-1">Developer Note (CORS):</p>
-          <p>This "Failed to fetch" error usually means the API server (api.limitless.ai) is not configured to allow requests from this web application's origin (e.g., localhost or the domain where it's hosted).</p>
+          <p>This &quot;Failed to fetch&quot; error usually means the API server (api.limitless.ai) is not configured to allow requests from this web application&apos;s origin (e.g., localhost or the domain where it&apos;s hosted).</p>
           <p className="mt-1">To resolve for local development:</p>
           <ul className="list-disc list-inside ml-2 mt-1 space-y-0.5">
             <li>Use a CORS proxy server as an intermediary.</li>
