@@ -151,12 +151,7 @@ export const performAnalysis = async (
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent(requestParams);
-
     const responseText = response.text;
-<<<<<<< HEAD
-=======
-    let analysisResult: unknown;
->>>>>>> origin/feat/playwright-dashboard-smoke-tests
 
     if (!responseText) {
       if (analysisType === AnalysisType.SENTIMENT) {
@@ -186,17 +181,12 @@ export const performAnalysis = async (
 
   } catch (error) {
     console.error(`Gemini API error during ${analysisType} analysis:`, error);
-<<<<<<< HEAD
+    const message = error instanceof Error ? error.message : 'Unknown error';
     if (analysisType === AnalysisType.SENTIMENT) {
-      console.warn(`Using fallback sentiment due to Gemini API error: ${(error as Error).message || 'Unknown error'}`);
-      // Ensure this is the exact fallback shape for the data part
+      console.warn(`Using fallback sentiment due to Gemini API error: ${message}`);
       return { data: { score: 0, label: 'neutral' }, groundingMetadata: null };
     }
-    if ((error as Error).message && (error as Error).message.includes("API key not valid")) {
-=======
-    const message = error instanceof Error ? error.message : 'Unknown error';
     if (message && message.includes("API key not valid")) {
->>>>>>> origin/feat/playwright-dashboard-smoke-tests
       throw new Error("Gemini API key is invalid or not authorized. Please check VITE_API_KEY in your .env.local file.");
     }
     throw new Error(`Failed to get ${analysisType} from Gemini: ${message}`);
