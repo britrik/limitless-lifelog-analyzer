@@ -1,6 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse, GenerateContentParameters, Part } from "@google/genai";
 import { GEMINI_MODEL_NAME, ANALYSIS_TYPE_CONFIG } from '../constants';
-import type { AnalysisType, GroundingMetadata, SpeakerContextState } from '../types';
+import { AnalysisType } from '../types';
+import type { GroundingMetadata, SpeakerContextState } from '../types';
 
 // Get Gemini API key from Vite environment variable
 const apiKey = import.meta.env.VITE_API_KEY;
@@ -18,7 +19,7 @@ try {
   // The app will continue, but API calls will fail and show errors in the UI.
 }
 
-const parseJsonFromText = (text: string): any => {
+const parseJsonFromText = (text: string): unknown => {
   let jsonStr = text.trim();
   const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s; // Matches ```json ... ``` or ``` ... ```
   const match = jsonStr.match(fenceRegex);
@@ -104,7 +105,7 @@ export const performAnalysis = async (
   transcriptContent: string,
   analysisType: AnalysisType,
   speakerContext?: SpeakerContextState,
-): Promise<{ data: any, groundingMetadata?: GroundingMetadata | null }> => {
+): Promise<{ data: unknown, groundingMetadata?: GroundingMetadata | null }> => {
   if (!ai) {
     throw new Error("Gemini API client is not initialized. Check VITE_API_KEY configuration in your .env.local file.");
   }
@@ -151,7 +152,6 @@ export const performAnalysis = async (
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent(requestParams);
-
     const responseText = response.text;
 
     if (!responseText) {
@@ -163,7 +163,7 @@ export const performAnalysis = async (
       throw new Error('No response text received from Gemini API');
     }
 
-    let analysisResultData: any;
+  let analysisResultData: unknown;
     if (config.requiresJson) {
       analysisResultData = parseJsonFromText(responseText);
     } else {
@@ -180,16 +180,16 @@ export const performAnalysis = async (
 
     return { data: analysisResultData, groundingMetadata };
 
-  } catch (error: any) {
+  } catch (error) {
     console.error(`Gemini API error during ${analysisType} analysis:`, error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     if (analysisType === AnalysisType.SENTIMENT) {
-      console.warn(`Using fallback sentiment due to Gemini API error: ${(error as Error).message || 'Unknown error'}`);
-      // Ensure this is the exact fallback shape for the data part
+      console.warn(`Using fallback sentiment due to Gemini API error: ${message}`);
       return { data: { score: 0, label: 'neutral' }, groundingMetadata: null };
     }
-    if ((error as Error).message && (error as Error).message.includes("API key not valid")) {
+    if (message && message.includes("API key not valid")) {
       throw new Error("Gemini API key is invalid or not authorized. Please check VITE_API_KEY in your .env.local file.");
     }
-    throw new Error(`Failed to get ${analysisType} from Gemini: ${error.message || 'Unknown error'}`);
+    throw new Error(`Failed to get ${analysisType} from Gemini: ${message}`);
   }
 };

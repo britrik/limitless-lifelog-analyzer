@@ -1,8 +1,6 @@
 import React from 'react';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import type { ChartDataPoint, ChartDataResponse } from '../../types'; // Import new types
-
-// ChartDataPoint is now imported from types.ts
+import type { ChartDataResponse } from '../types';
 
 interface AnalyticsChartProps {
   chartResponse: ChartDataResponse; // Changed from 'data' to 'chartResponse'
@@ -25,12 +23,10 @@ export const AnalyticsChart: React.FC<AnalyticsChartProps> = ({
   showGrid = true,
   showTooltip = true,
   selectedGroupBy,
-  onGroupByChange,
-  timeRange
+  onGroupByChange
 }: AnalyticsChartProps & {
   selectedGroupBy?: 'day' | 'week' | 'month';
   onGroupByChange?: (groupBy: 'day' | 'week' | 'month') => void;
-  timeRange?: '7d' | '30d' | '90d' | 'all';
 }) => {
   // Defensive fallback for chartResponse
   const { data: chartData, status, message } = chartResponse || { data: [], status: 'loading', message: 'Chart data is being loaded...' };

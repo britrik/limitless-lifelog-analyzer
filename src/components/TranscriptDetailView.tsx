@@ -52,9 +52,10 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
       if (result.groundingMetadata) {
         setGroundingMetadata(prev => ({...prev, [type]: result.groundingMetadata}));
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(`Error performing ${type} analysis:`, err);
-      setAnalysisErrors(prev => ({ ...prev, [type]: err.message || `Failed to perform ${type} analysis.` }));
+      const message = err instanceof Error ? err.message : `Failed to perform ${type} analysis.`;
+      setAnalysisErrors(prev => ({ ...prev, [type]: message }));
     } finally {
       setIsLoadingAnalysis(prev => ({ ...prev, [type]: false }));
     }

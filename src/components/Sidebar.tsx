@@ -155,4 +155,4 @@ const SidebarComponent: FC<SidebarProps> = ({ isOpen, onClose }) => {
 const Sidebar = memo(SidebarComponent);
 
 export default Sidebar;
-};
+ 

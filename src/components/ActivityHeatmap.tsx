@@ -84,7 +84,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
           activityByDate[dateKey].count++;
           activityByDate[dateKey].transcripts.push(transcript);
         }
-      } catch (error) {
+      } catch (_error) { // Mark as intentionally unused
         console.warn('Invalid date format in transcript:', transcript.date);
       }
     });

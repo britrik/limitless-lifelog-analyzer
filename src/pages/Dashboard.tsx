@@ -10,14 +10,18 @@ import { fetchTranscripts } from '../services/limitlessApi'; // Correct: Relativ
 import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Correct: Relative to src/utils/dashboardAnalytics.ts
 import { Transcript } from '../types'; // Correct: Relative to src/types.ts
 
-import { ActivityHeatmap } from '../components/ActivityHeatmap'; // Correct: Named import (exists in components/)
-import { RecentActivityList } from '../components/RecentActivityList'; // Correct: Named import (exists in components/)
+import { ActivityHeatmap } from '../components/ActivityHeatmap';
+import { RecentActivityList } from '../components/RecentActivityList';
 
 // Note: Removed imports/usages for missing files (TopSpeakers, ErrorBoundary). Other components from screenshot (e.g., HourlyActivity) can be added if needed.
 
 export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to match likely import in index.ts
   const [transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
-  const [analytics, setAnalytics] = useState({ // Processed analytics data for charts/lists
+  const [analytics, setAnalytics] = useState<{
+    sentimentTrend: ReturnType<typeof Array.prototype.slice>;
+    activityHeatmap: Array<{ hour: number; activity: number; label: string }>;
+    recentActivities: Array<{ id: string; type: 'recording' | 'analysis' | 'bookmark'; title: string; description: string; timestamp: string; relativeTime: string }>;
+  }>({
     sentimentTrend: [],
     activityHeatmap: [],
     recentActivities: [],
@@ -75,8 +79,8 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
   const memoizedAnalytics = useMemo(() => analytics, [analytics]); // Memoize to prevent unnecessary re-renders
 
   // Custom textField with forwardRef to handle refs properly
-  const CustomTextField = forwardRef((props, ref) => (
-    <TextField {...props} ref={ref} sx={{ mb: 2 }} />
+  const CustomTextField = forwardRef<HTMLInputElement, React.ComponentProps<typeof TextField>>((props, ref) => (
+    <TextField {...props} inputRef={ref} sx={{ mb: 2 }} />
   ));
 
   return (
@@ -90,7 +94,7 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
         <DatePicker
           label="Select Date for Lifelogs"
           value={selectedDate}
-          onChange={(newDate) => setSelectedDate(newDate)} // Removed duplicate loadAllData() - useEffect handles it
+          onChange={(newDate: Date | null) => setSelectedDate(newDate)} // Removed duplicate loadAllData() - useEffect handles it
           enableAccessibleFieldDOMStructure={false} // Fix for sectionListRef error when using custom textField with <input>
           slots={{ textField: CustomTextField }} // Use forwarded ref component
         />
