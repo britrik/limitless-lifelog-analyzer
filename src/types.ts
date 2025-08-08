@@ -10,6 +10,15 @@ export interface Transcript {
   endTime?: string;   // ISO date string, from Lifelog
 }
 
+export type TimeRange = '24h' | '7d' | '30d' | '90d' | '12w' | '52w' | 'all';
+export type GroupBy = 'hour' | 'day' | 'week' | 'month';
+
+export interface ChartDataPoint {
+  date: string;
+  value: number; // Ensure value is always a number
+  label: string;
+}
+
 export enum AnalysisType {
   SUMMARY = 'summary',
   TOPICS = 'topics',
