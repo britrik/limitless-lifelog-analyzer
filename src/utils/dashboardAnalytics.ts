@@ -39,22 +39,27 @@ export interface DashboardMetrics {
   errorCount?: number; // Optional field for other errors encountered during processing
 }
 
-// Type guard for DashboardMetrics
-export function isValidDashboardMetrics(metrics: unknown): metrics is DashboardMetrics {
+export function isValidDashboardMetrics(x: unknown): x is DashboardMetrics {
+  if (!x || typeof x !== 'object') return false;
+  const m = x as Record<string, unknown>;
+  const growth = m.growthPercentages as Record<string, unknown> | undefined;
+
+  const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+  const isNumOrNA = (v: unknown) => isNum(v) || v === 'N/A';
+
   return (
-    metrics &&
-    typeof metrics.totalRecordings === 'number' &&
-    typeof metrics.hoursRecorded === 'number' &&
-    typeof metrics.aiAnalyses === 'number' &&
-    typeof metrics.bookmarks === 'number' &&
-    typeof metrics.recentActivity === 'number' && // Assuming recentActivity is a count; adjust if it's an array
-    typeof metrics.invalidDateCount === 'number' &&
-    metrics.growthPercentages &&
-    (typeof metrics.growthPercentages.recordings === 'number' || metrics.growthPercentages.recordings === 'N/A') &&
-    (typeof metrics.growthPercentages.hours === 'number' || metrics.growthPercentages.hours === 'N/A') &&
-    (typeof metrics.growthPercentages.analyses === 'number' || metrics.growthPercentages.analyses === 'N/A') &&
-    (typeof metrics.growthPercentages.bookmarks === 'number' || metrics.growthPercentages.bookmarks === 'N/A') &&
-    (metrics.errorCount === undefined || typeof metrics.errorCount === 'number') // Optional field check
+    isNum(m.totalRecordings) &&
+    isNum(m.hoursRecorded) &&
+    isNum(m.aiAnalyses) &&
+    isNum(m.bookmarks) &&
+    isNum(m.recentActivity) &&
+    isNum(m.invalidDateCount) &&
+    typeof growth === 'object' && growth !== null &&
+    isNumOrNA(growth.recordings) &&
+    isNumOrNA(growth.hours) &&
+    isNumOrNA(growth.analyses) &&
+    isNumOrNA(growth.bookmarks) &&
+    (m.errorCount === undefined || isNum(m.errorCount))
   );
 }
 
@@ -595,8 +600,9 @@ export const generateSentimentTrendData = async (
   const processTranscriptSentiment = async (transcript: Transcript): Promise<number> => {
     if (sentimentCache.has(transcript.id)) return sentimentCache.get(transcript.id) ?? 0;
     try {
-      const result = await performAnalysis(transcript.content, AnalysisType.SENTIMENT);
-      const score = typeof result.data?.score === 'number' ? result.data.score : 0;
+      const result = (await performAnalysis(transcript.content, AnalysisType.SENTIMENT)) as AnalysisResponse;
+      const data = result?.data as SentimentDataShape | undefined;
+      const score = typeof data?.score === 'number' ? data.score : 0;
       const finalScore = Math.max(-100, Math.min(100, score));
       sentimentCache.set(transcript.id, finalScore);
       return finalScore;
@@ -636,10 +642,14 @@ export const generateSentimentTrendData = async (
     return { data, status, message: status === 'no-data' ? 'No sentiment data to display.' : undefined };
   }
 
+  // Group without mutating Transcript: aggregate sentiment by matching ids
   const { groups, skipped } = groupTranscriptsByPeriod(
-    sentiments.map(({ transcript, score }) => ({ ...transcript, score } as Transcript & { score: number })),
+    filtered,
     groupBy as GroupBy,
-    (t, current: { sum: number; count: number }) => ({ sum: current.sum + t.score, count: current.count + 1 }),
+    (t, current: { sum: number; count: number }) => {
+      const s = sentiments.find(s => s.transcript.id === t.id)?.score ?? 0;
+      return { sum: current.sum + s, count: current.count + 1 };
+    },
     () => ({ sum: 0, count: 0 })
   );
 

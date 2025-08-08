@@ -1,4 +1,4 @@
-export { ActivityHeatmap } from './ActivityHeatmap';
+export { default as ActivityHeatmap } from './ActivityHeatmap';
 export { AnalysisCard } from './AnalysisCard';
 export { AnalyticsChart } from './AnalyticsChart';
 export { ContextManager } from './ContextManager';
@@ -10,7 +10,7 @@ export { Layout } from './Layout';
 export { LoadingSpinner } from './LoadingSpinner';
 export { MarkdownRenderer } from './MarkdownRenderer';
 export { MetricCard } from './MetricCard';
-export { RecentActivityList } from './RecentActivityList';
+export { default as RecentActivityList } from './RecentActivityList';
 export { default as Sidebar } from './Sidebar';
 export { SpeakerProfileForm } from './SpeakerProfileForm';
 export { TopicsCloud } from './TopicsCloud';

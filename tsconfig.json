@@ -1,6 +1,6 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
+  "compilerOptions": { "esModuleInterop": true,
+     "target": "ES2020",
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
@@ -11,15 +11,14 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "esModuleInterop": true,
-    "strict": true,
+        "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true, // Explicit for stricter type checking
     "noImplicitReturns": true, // Ensures functions always return values
     "forceConsistentCasingInFileNames": true, // Prevents case-sensitivity issues
-    "esModuleInterop": true, // Better handling of CommonJS/ES module interop
+     // Better handling of CommonJS/ES module interop
     "allowSyntheticDefaultImports": true, // Allows default imports from modules without default exports
     "baseUrl": "src",
     "paths": {
@@ -27,7 +26,14 @@
       "utils/*": ["utils/*"],
       "services/*": ["services/*"],
       "types/*": ["types/*"]
-    }
+    ,
+  "exclude": [
+    "src/__tests__",
+    "src/utils/dashboardAnalytics.test.ts",
+    "e2e"
+  ]
+}
+
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

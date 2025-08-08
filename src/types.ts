@@ -1,4 +1,3 @@
-
 export interface Transcript {
   id: string;
   title: string;
@@ -13,10 +12,14 @@ export interface Transcript {
 export type TimeRange = '24h' | '7d' | '30d' | '90d' | '12w' | '52w' | 'all';
 export type GroupBy = 'hour' | 'day' | 'week' | 'month';
 
+// Unified ChartDataPoint with label optional to support various chart generators
 export interface ChartDataPoint {
   date: string;
   value: number; // Ensure value is always a number
-  label: string;
+  label?: string;
+  // For Phase 3: Weighted Sentiment
+  min?: number;
+  max?: number;
 }
 
 export enum AnalysisType {
@@ -66,16 +69,6 @@ export interface SpeakerContextCategory {
 
 // Represents the overall state for speaker context
 export type SpeakerContextState = SpeakerContextCategory[];
-
-// --- Chart Data Types ---
-export interface ChartDataPoint { // Already exists in AnalyticsChart.tsx, centralizing here
-  date: string;
-  value: number;
-  label?: string;
-  // For Phase 3: Weighted Sentiment
-  min?: number;
-  max?: number;
-}
 
 export type ChartStatus = 'success' | 'no-data' | 'error' | 'loading';
 

@@ -1,0 +1,19 @@
+---
+description: Review only the modified files in `fix/dashboard-refactor` for correctness, type safety, performance, and code consistency. Focus exclusively on differences between `HEAD` and `origin/fix/dashboard-refactor`, ignoring unrelated files and dependencies unless directly impacted by these changes.
+globs: README.md, e2e/dashboard-range.spec.ts, eslint.config.js, jest.config.cjs, package-lock.json, package.json, playwright-report/index.html, playwright.config.ts, src/components/ActivityHeatmap.tsx, src/components/AnalysisCard.tsx, src/components/AnalyticsChart.tsx, src/components/ErrorDisplay.tsx, src/components/Sidebar.tsx, src/components/TopicsCloud.tsx, src/components/TranscriptDetailView.tsx, src/components/index.ts, src/pages/Dashboard.tsx, src/pages/NotFound.tsx, src/services/geminiService.ts, src/services/limitlessApi.ts, src/types.ts, src/utils/dashboardAnalytics.test.ts, src/utils/dashboardAnalytics.ts
+alwaysApply: true
+---
+
+# Branch Review Rules – fix/dashboard-refactor
+
+## Scope
+- Only review code changes between `HEAD` and `origin/fix/dashboard-refactor`.
+- Focus on files modified in this branch.
+- Ignore unrelated files and dependencies unless directly impacted by these changes.
+
+## Review Goals
+1. **Correctness** – Identify logic errors, broken imports, incorrect typings, or mismatches between function definitions and usage.
+2. **Type Safety** – Ensure TypeScript types are correct and aligned with existing project types.
+3. **Performance** – Flag unnecessary re-renders, inefficient loops, or expensive operations in render paths.
+4. **Code Consistency** – Ensure style, formatting, and naming conventions match the existing codebase.
+5. **Clarity** – Flag overly complex functions or unclear variable names; suggest refactoring only if it improves maintainability without scope creep.

@@ -1,29 +1,27 @@
 import React from 'react';
 import { List, ListItem, ListItemText, Typography } from '@mui/material';
+import type { ActivityItem } from '../types';
 
-interface RecentActivityItem {
-  id: string;
-  title: string;
-  date: string;
-  // Add more fields if needed, e.g., type: 'recording' | 'analysis'
+export interface RecentActivityListProps {
+  activities: ActivityItem[];
 }
 
-interface RecentActivityListProps {
-  items: RecentActivityItem[];
-}
-
-export const RecentActivityList: React.FC<RecentActivityListProps> = ({ items }) => {
-  if (items.length === 0) {
+function RecentActivityList({ activities }: RecentActivityListProps) {
+  if (!activities || activities.length === 0) {
     return <Typography>No recent activity</Typography>;
   }
 
   return (
     <List>
-      {items.map((item) => (
+      {activities.map((item) => (
         <ListItem key={item.id}>
-          <ListItemText primary={item.title} secondary={item.date} />
+          <ListItemText primary={item.title} secondary={item.relativeTime} />
         </ListItem>
       ))}
     </List>
   );
-};
+}
+
+RecentActivityList.displayName = 'RecentActivityList';
+
+export default RecentActivityList;

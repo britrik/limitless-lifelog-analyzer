@@ -10,13 +10,13 @@ import { fetchTranscripts } from '../services/limitlessApi'; // Correct: Relativ
 import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Correct: Relative to src/utils/dashboardAnalytics.ts
 import { Transcript } from '../types'; // Correct: Relative to src/types.ts
 
-import { ActivityHeatmap } from '../components/ActivityHeatmap';
-import { RecentActivityList } from '../components/RecentActivityList';
+import ActivityHeatmap from '../components/ActivityHeatmap';
+import RecentActivityList from '../components/RecentActivityList';
 
 // Note: Removed imports/usages for missing files (TopSpeakers, ErrorBoundary). Other components from screenshot (e.g., HourlyActivity) can be added if needed.
 
 export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to match likely import in index.ts
-  const [transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
+  const [_transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
   const [analytics, setAnalytics] = useState<{
     sentimentTrend: ReturnType<typeof Array.prototype.slice>;
     activityHeatmap: Array<{ hour: number; activity: number; label: string }>;
@@ -127,3 +127,5 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
     </Box>
   );
 };
+
+Dashboard.displayName = "Dashboard";
