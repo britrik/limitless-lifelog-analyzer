@@ -1,9 +1,15 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches: [ main, fix/** ]
+    branches: [ "fix/**" ]   # fast feedback while iterating
+  pull_request:
+    branches: [ main ]       # gating signal for merge to main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-type-unit:
@@ -27,11 +33,9 @@ jobs:
     needs: lint-type-unit
     timeout-minutes: 30
     env:
-      # Set these in repo Settings → Secrets and variables → Actions
       VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
       VITE_LIMITLESS_API_KEY: ${{ secrets.VITE_LIMITLESS_API_KEY }}
-      # Set to '1' in repo Variables to skip E2E if browsers can't be installed
-      PW_SKIP_E2E: ${{ vars.PW_SKIP_E2E }}
+      PW_SKIP_E2E: ${{ vars.PW_SKIP_E2E }} # set to "1" on noisy branches
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
