@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main, fix/** ]
+
+jobs:
+  lint-type-unit:
+    name: Lint • Typecheck • Unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint -- --max-warnings=0
+      - run: npm run typecheck
+      - run: npm test -- --passWithNoTests
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: lint-type-unit
+    timeout-minutes: 30
+    env:
+      # Set these in repo Settings → Secrets and variables → Actions
+      VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+      VITE_LIMITLESS_API_KEY: ${{ secrets.VITE_LIMITLESS_API_KEY }}
+      # Set to '1' in repo Variables to skip E2E if browsers can't be installed
+      PW_SKIP_E2E: ${{ vars.PW_SKIP_E2E }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browsers
+        if: env.PW_SKIP_E2E != '1'
+        run: npx playwright install --with-deps
+      - name: Run E2E
+        if: env.PW_SKIP_E2E != '1'
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: always() && env.PW_SKIP_E2E != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
