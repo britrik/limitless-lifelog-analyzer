@@ -14,8 +14,6 @@ export const Lifelogs: React.FC = () => {
   const [selectedTranscriptId, setSelectedTranscriptId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
-  const [hasMore, setHasMore] = useState(true);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,23 +40,20 @@ export const Lifelogs: React.FC = () => {
     setError(null);
 
     try {
-      const cursor = reset ? undefined : nextCursor;
-      const result = await fetchTranscripts(20, cursor);
-      
+      const result = await fetchTranscripts();
+
       if (reset) {
-        setTranscripts(result.transcripts);
+        setTranscripts(result);
       } else {
-        setTranscripts(prev => [...prev, ...result.transcripts]);
+        setTranscripts(prev => [...prev, ...result]);
       }
-      
-      setNextCursor(result.nextCursor);
-      setHasMore(!!result.nextCursor);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load transcripts');
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, nextCursor]);
+  }, [isLoading, transcripts]);
 
   // Initial load
   useEffect(() => {
@@ -113,13 +108,6 @@ export const Lifelogs: React.FC = () => {
     // Update selected transcript if it's the one being toggled
     if (selectedTranscript?.id === transcriptId) {
       setSelectedTranscript(prev => prev ? { ...prev, isStarred: !prev.isStarred } : null);
-    }
-  };
-
-  // Load more transcripts
-  const handleLoadMore = () => {
-    if (hasMore && !isLoading) {
-      loadTranscripts(false);
     }
   };
 
@@ -195,30 +183,11 @@ export const Lifelogs: React.FC = () => {
             {error ? (
               <ErrorDisplay message={error} onRetry={() => loadTranscripts(true)} />
             ) : (
-              <>
-                <TranscriptList
-                  transcripts={filteredTranscripts}
-                  onSelectTranscript={handleSelectTranscript}
-                  selectedTranscriptId={selectedTranscriptId}
-                />
-                
-                {/* Load More Button */}
-                {hasMore && !searchQuery && (
-                  <div className="mt-4 text-center">
-                    <button
-                      onClick={handleLoadMore}
-                      disabled={isLoading}
-                      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 text-slate-200 rounded-md transition-colors duration-150 flex items-center space-x-2 mx-auto"
-                    >
-                      {isLoading ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <span>Load More</span>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </>
+              <TranscriptList
+                transcripts={filteredTranscripts}
+                onSelectTranscript={handleSelectTranscript}
+                selectedTranscriptId={selectedTranscriptId}
+              />
             )}
           </div>
         </div>

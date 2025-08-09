@@ -1,5 +1,7 @@
 import React from 'react';
 import { List, ListItem, ListItemText, Typography } from '@mui/material';
+
+void React;
 import type { ActivityItem } from '../types';
 
 export interface RecentActivityListProps {

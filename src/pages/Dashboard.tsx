@@ -4,19 +4,15 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import TextField from '@mui/material/TextField';
-import { format } from 'date-fns';
-
-import { fetchTranscripts } from '../services/limitlessApi'; // Correct: Relative to src/services/limitlessApi.ts
-import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics'; // Correct: Relative to src/utils/dashboardAnalytics.ts
-import { Transcript } from '../types'; // Correct: Relative to src/types.ts
+import { fetchTranscripts } from '../services/limitlessApi';
+import { generateSentimentTrendData, generateHourlyActivityData, getRecentActivity } from '../utils/dashboardAnalytics';
 
 import ActivityHeatmap from '../components/ActivityHeatmap';
 import RecentActivityList from '../components/RecentActivityList';
 
 // Note: Removed imports/usages for missing files (TopSpeakers, ErrorBoundary). Other components from screenshot (e.g., HourlyActivity) can be added if needed.
 
-export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to match likely import in index.ts
-  const [_transcripts, setTranscripts] = useState<Transcript[]>([]); // Stores fetched lifelogs/transcripts
+export const Dashboard: React.FC = () => {
   const [analytics, setAnalytics] = useState<{
     sentimentTrend: ReturnType<typeof Array.prototype.slice>;
     activityHeatmap: Array<{ hour: number; activity: number; label: string }>;
@@ -34,13 +30,7 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
     setLoading(true);
     setError(null);
     try {
-      // Fetch transcripts with optional date and timezone filters
-      const { transcripts: fetchedTranscripts } = await fetchTranscripts(100, undefined, {
-        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined, // Format to API-expected YYYY-MM-DD
-        timezone: 'Europe/London', // Default timezone; adjust based on user location
-      });
-
-      console.log('Fetched transcripts:', fetchedTranscripts); // Added for debugging API responses
+      const fetchedTranscripts = await fetchTranscripts(selectedDate ?? undefined);
 
       if (fetchedTranscripts.length === 0) {
         setError('No lifelogs found for the selected date. Try recording some with your Pendant or choose another date.');
@@ -48,18 +38,14 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
         return;
       }
 
-      setTranscripts(fetchedTranscripts);
-
-      // Process analytics using individual functions from dashboardAnalytics.ts
-      // Use '30d' as default timeRange; can make this dynamic later
-      const sentimentResult = await generateSentimentTrendData(fetchedTranscripts, '30d'); // Still process data (even if not displayed yet)
+      const sentimentResult = await generateSentimentTrendData(fetchedTranscripts, '30d');
       const activityHeatmapData = generateHourlyActivityData(fetchedTranscripts, '30d');
       const recentActivitiesData = getRecentActivity(fetchedTranscripts, 5, '7d');
 
       setAnalytics({
-        sentimentTrend: sentimentResult.data || [], // From generateSentimentTrendData (kept for future use)
-        activityHeatmap: activityHeatmapData || [], // From generateHourlyActivityData
-        recentActivities: recentActivitiesData || [], // From getRecentActivity
+        sentimentTrend: sentimentResult.data || [],
+        activityHeatmap: activityHeatmapData || [],
+        recentActivities: recentActivitiesData || [],
       });
     } catch (err) {
       console.error('Dashboard: Failed to fetch or process data:', err);
@@ -70,9 +56,6 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
   };
 
   useEffect(() => {
-    console.log(
-      'Dashboard component mounted, initiating data load. Preserved features like Speaker Context are managed in their respective components (e.g., Lifelogs, TranscriptDetailModal).'
-    );
     loadAllData();
   }, [selectedDate]); // Auto-refetch when selectedDate changes
 
@@ -82,6 +65,7 @@ export const Dashboard: React.FC = () => {  // Fixed: Changed to named export to
   const CustomTextField = forwardRef<HTMLInputElement, React.ComponentProps<typeof TextField>>((props, ref) => (
     <TextField {...props} inputRef={ref} sx={{ mb: 2 }} />
   ));
+  CustomTextField.displayName = 'CustomTextField';
 
   return (
     <Box sx={{ flexGrow: 1, p: 3, backgroundColor: 'background.default' }}>

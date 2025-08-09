@@ -1,10 +1,10 @@
 import { GoogleGenAI, GenerateContentResponse, GenerateContentParameters, Part } from "@google/genai";
 import { GEMINI_MODEL_NAME, ANALYSIS_TYPE_CONFIG } from '../constants';
-import { AnalysisType } from '../types';
-import type { GroundingMetadata, SpeakerContextState } from '../types';
+import { AnalysisType, AnalysisResponse } from '../types';
+import type { SpeakerContextState } from '../types';
 
 // Get Gemini API key from Vite environment variable
-const apiKey = import.meta.env.VITE_API_KEY;
+const apiKey = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_KEY : undefined;
 
 let ai: GoogleGenAI | null = null;
 
@@ -101,11 +101,11 @@ const formatSpeakerContextForPrompt = (speakerContext: SpeakerContextState): str
 };
 
 
-export const performAnalysis = async (
+export const performAnalysis = async <T = unknown>(
   transcriptContent: string,
   analysisType: AnalysisType,
   speakerContext?: SpeakerContextState,
-): Promise<{ data: unknown, groundingMetadata?: GroundingMetadata | null }> => {
+): Promise<AnalysisResponse<T>> => {
   if (!ai) {
     throw new Error("Gemini API client is not initialized. Check VITE_API_KEY configuration in your .env.local file.");
   }
@@ -158,7 +158,7 @@ export const performAnalysis = async (
       if (analysisType === AnalysisType.SENTIMENT) {
         console.warn(`Gemini API returned no response text for SENTIMENT analysis. Using fallback.`);
         // Ensure this is the exact fallback shape for the data part
-        return { data: { score: 0, label: 'neutral' }, groundingMetadata: null };
+        return { data: { score: 0, label: 'neutral' } as T, groundingMetadata: null };
       }
       throw new Error('No response text received from Gemini API');
     }
@@ -178,14 +178,14 @@ export const performAnalysis = async (
     // If Gemini *does* return text but it's not JSON for a requiresJson type, parseJsonFromText will throw,
     // leading to the catch block below.
 
-    return { data: analysisResultData, groundingMetadata };
+    return { data: analysisResultData as T, groundingMetadata };
 
   } catch (error) {
     console.error(`Gemini API error during ${analysisType} analysis:`, error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     if (analysisType === AnalysisType.SENTIMENT) {
       console.warn(`Using fallback sentiment due to Gemini API error: ${message}`);
-      return { data: { score: 0, label: 'neutral' }, groundingMetadata: null };
+      return { data: { score: 0, label: 'neutral' } as T, groundingMetadata: null };
     }
     if (message && message.includes("API key not valid")) {
       throw new Error("Gemini API key is invalid or not authorized. Please check VITE_API_KEY in your .env.local file.");
