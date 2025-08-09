@@ -1,54 +1,85 @@
 name: CI
 
 on:
-  push:
-    branches: [ "fix/**" ]   # fast feedback while iterating
-  pull_request:
-    branches: [ main ]       # gating signal for merge to main
+  # Manual runs from the Actions tab; lets you choose the feature branch and whether to run E2E
   workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "Run Playwright E2E tests"
+        type: boolean
+        default: false
+  # PRs (e.g., feature -> main) always run
+  pull_request:
+    branches: [ main, fix/** ]
+  # Only run on pushes to feature branches (avoid auto-running on main)
+  push:
+    branches: [ fix/** ]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "20"
+
 jobs:
   lint-type-unit:
     name: Lint • Typecheck • Unit
+    # Allow on all triggers except direct pushes to main (still allowed if manually dispatched)
+    if: github.event_name == 'workflow_dispatch' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
+
       - run: npm ci
+
       - run: npm run lint -- --max-warnings=0
+
       - run: npm run typecheck
+
       - run: npm test -- --passWithNoTests
 
   e2e:
     name: Playwright E2E
-    runs-on: ubuntu-latest
     needs: lint-type-unit
+    # Run E2E when:
+    #  - workflow_dispatch AND user opted in (run_e2e=true), OR
+    #  - any non-main ref (PRs, feature-branch pushes)
+    if: >
+      (github.event_name == 'workflow_dispatch' && inputs.run_e2e == true) ||
+      (github.ref != 'refs/heads/main' && github.event_name != 'workflow_dispatch')
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      # Set these in: Settings → Secrets and variables → Actions → Repository secrets
       VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
       VITE_LIMITLESS_API_KEY: ${{ secrets.VITE_LIMITLESS_API_KEY }}
-      PW_SKIP_E2E: ${{ vars.PW_SKIP_E2E }} # set to "1" on noisy branches
+      # Optional repo variable to hard-skip E2E when env can’t install browsers (e.g., locked runners)
+      PW_SKIP_E2E: ${{ vars.PW_SKIP_E2E }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
+
       - run: npm ci
+
       - name: Install Playwright browsers
         if: env.PW_SKIP_E2E != '1'
         run: npx playwright install --with-deps
-      - name: Run E2E
+
+      - name: Run E2E tests
         if: env.PW_SKIP_E2E != '1'
         run: npx playwright test
+
       - name: Upload Playwright report
         if: always() && env.PW_SKIP_E2E != '1'
         uses: actions/upload-artifact@v4
