@@ -7,6 +7,7 @@ export interface Transcript {
   isStarred?: boolean; // Whether the transcript is starred/favorited
   startTime?: string; // ISO date string, from Lifelog
   endTime?: string;   // ISO date string, from Lifelog
+  updatedAt?: string; // Last updated timestamp from Lifelog
 }
 
 export type TimeRange = '24h' | '7d' | '30d' | '90d' | '12w' | '52w' | 'all';
@@ -50,6 +51,18 @@ export interface GroundingChunk {
 export interface GroundingMetadata {
   groundingChunks?: GroundingChunk[];
   // other grounding metadata fields
+}
+
+/** Standard shape returned by performAnalysis */
+export interface AnalysisResponse<T = unknown> {
+  data: T;
+  groundingMetadata?: unknown | null;
+}
+
+/** Minimal sentiment information for trend aggregation */
+export interface SentimentDataShape {
+  score: number;
+  label: 'negative' | 'neutral' | 'positive';
 }
 
 // --- Speaker Context Types ---

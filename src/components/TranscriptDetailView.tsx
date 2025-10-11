@@ -50,7 +50,10 @@ export const TranscriptDetailView: React.FC<TranscriptDetailViewProps> = ({ tran
       const result = await performAnalysis(transcript.content, type, speakerContext); // Pass speakerContext
       setAnalysisData(prev => ({ ...prev, [type]: result.data }));
       if (result.groundingMetadata) {
-        setGroundingMetadata(prev => ({...prev, [type]: result.groundingMetadata}));
+        setGroundingMetadata(prev => ({
+          ...prev,
+          [type]: result.groundingMetadata as GroundingMetadata
+        }));
       }
     } catch (err) {
       console.error(`Error performing ${type} analysis:`, err);

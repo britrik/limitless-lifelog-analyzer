@@ -1,9 +1,19 @@
-import { parseISO, isWithinInterval, subDays, format, startOfDay, startOfWeek, startOfMonth, differenceInMinutes } from 'date-fns';
-import { Transcript, AnalysisType, ChartDataResponse } from '../types';
+import { isWithinInterval, subDays, format, startOfDay, startOfWeek, startOfMonth, differenceInMinutes } from 'date-fns';
+import { Transcript, AnalysisType, ChartDataResponse, SentimentDataShape } from '../types';
 import { performAnalysis } from '../services/geminiService';
+import { safeParseISO } from './date';
 
 // Cache for sentiment analysis results
 const sentimentCache = new Map<string, number | null>();
+
+const isSentimentDataShape = (data: unknown): data is SentimentDataShape => {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { score?: unknown }).score === 'number' &&
+    ['negative', 'neutral', 'positive'].includes((data as { label?: unknown }).label as string)
+  );
+};
 
 // Define GroupBy type
 export type GroupBy = 'day' | 'week' | 'month';
@@ -64,7 +74,7 @@ export function isValidDashboardMetrics(x: unknown): x is DashboardMetrics {
 }
 
 import dayjs from 'dayjs';
-import isBetween from 'dayjs/plugin/isBetween'; // Import isBetween plugin
+import isBetween from 'dayjs/plugin/isBetween.js'; // Import isBetween plugin
 dayjs.extend(isBetween); // Extend dayjs with the plugin
 
 export interface TimeRangeFilter {
@@ -81,23 +91,8 @@ export const TIME_RANGES: TimeRangeFilter[] = [
   { label: 'All time', value: 'all' },
 ];
 
-// Centralized safe date parsing helper
-const safeParseISO = (dateStr: string, transcriptId: string): Date | null => {
-  try {
-    const date = parseISO(dateStr);
-    if (isNaN(date.getTime())) {
-      console.warn(`Invalid date "${dateStr}" for transcript ${transcriptId}. Skipping.`);
-      return null;
-    }
-    return date;
-  } catch (error) {
-    console.warn(`Error parsing date "${dateStr}" for transcript ${transcriptId}: ${error}. Skipping.`);
-    return null;
-  }
-};
-
 // Estimate duration using API metadata if available, otherwise from content length.
-const estimateDuration = (transcript: Transcript): number => {
+export const estimateDuration = (transcript: Transcript): number => {
   if (transcript.startTime && transcript.endTime) {
     const startDate = safeParseISO(transcript.startTime, transcript.id);
     const endDate = safeParseISO(transcript.endTime, transcript.id);
@@ -230,7 +225,7 @@ export const calculateDashboardMetrics = (
 // Common grouping utility
 type GroupedData<T> = Record<string, { data: T; sortDate: Date }>;
 
-const groupTranscriptsByPeriod = <T>(
+export const groupTranscriptsByPeriod = <T>(
   transcripts: Transcript[],
   groupBy: GroupBy,
   aggregator: (transcript: Transcript, current: T) => T,
@@ -476,7 +471,11 @@ export const getRecentActivity = (
   });
 
   return activities
-    .sort((a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime())
+    .sort((a, b) => {
+      const bd = safeParseISO(b.timestamp, b.id) ?? new Date(0);
+      const ad = safeParseISO(a.timestamp, a.id) ?? new Date(0);
+      return bd.getTime() - ad.getTime();
+    })
     .slice(0, limit);
 };
 
@@ -600,9 +599,11 @@ export const generateSentimentTrendData = async (
   const processTranscriptSentiment = async (transcript: Transcript): Promise<number> => {
     if (sentimentCache.has(transcript.id)) return sentimentCache.get(transcript.id) ?? 0;
     try {
-      const result = (await performAnalysis(transcript.content, AnalysisType.SENTIMENT)) as AnalysisResponse;
-      const data = result?.data as SentimentDataShape | undefined;
-      const score = typeof data?.score === 'number' ? data.score : 0;
+      const result = await performAnalysis<SentimentDataShape>(
+        transcript.content,
+        AnalysisType.SENTIMENT
+      );
+      const score = isSentimentDataShape(result.data) ? result.data.score : 0;
       const finalScore = Math.max(-100, Math.min(100, score));
       sentimentCache.set(transcript.id, finalScore);
       return finalScore;

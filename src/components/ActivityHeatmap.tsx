@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
+void React;
+
 // This component is used by Dashboard to render hourly activity heatmap-like data.
 // Align props with Dashboard usage: it passes `data` which is an array of { hour, activity, label }.
 export interface ActivityHeatmapPoint {

@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { Header } from './Header';
-import Sidebar from './Sidebar';
+import Sidebar from './Sidebar'; // default import
 
 interface LayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 }
