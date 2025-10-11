@@ -1,4 +1,3 @@
-
 import { AnalysisType } from './types';
 
 export const GEMINI_MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
@@ -28,3 +27,64 @@ export const ANALYSIS_TYPE_CONFIG: Record<AnalysisType, { displayName: string; p
     requiresJson: true,
   }
 };
+
+// Dashboard Analytics Constants
+export const TIME_RANGES = {
+  '7d': { label: '7 Days', days: 7 },
+  '30d': { label: '30 Days', days: 30 },
+  '90d': { label: '90 Days', days: 90 },
+  'all': { label: 'All Time', days: null }
+} as const;
+
+export const CHART_COLORS = {
+  primary: '#8b5cf6',
+  secondary: '#a855f7',
+  accent: '#3b82f6',
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  muted: '#64748b'
+} as const;
+
+export const DASHBOARD_CONFIG = {
+  // Estimated words per minute for duration calculation
+  WORDS_PER_MINUTE: 150,
+  
+  // Default chart height
+  DEFAULT_CHART_HEIGHT: 300,
+  
+  // Heatmap configuration
+  HEATMAP: {
+    WEEKS_TO_SHOW: 20,
+    CELL_SIZE: 12,
+    CELL_GAP: 2
+  },
+  
+  // Topics cloud configuration
+  TOPICS_CLOUD: {
+    MIN_FONT_SIZE: 12,
+    MAX_FONT_SIZE: 24,
+    MIN_FREQUENCY: 2,
+    MAX_TOPICS: 50
+  },
+  
+  // Stop words to filter out from topics
+  STOP_WORDS: new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+    'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after',
+    'above', 'below', 'between', 'among', 'is', 'are', 'was', 'were', 'be', 'been',
+    'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those',
+    'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
+    'my', 'your', 'his', 'her', 'its', 'our', 'their', 'what', 'which', 'who',
+    'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
+    'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same',
+    'so', 'than', 'too', 'very', 'just', 'now', 'here', 'there', 'then', 'also',
+    'well', 'like', 'get', 'go', 'know', 'think', 'see', 'come', 'want', 'say',
+    'make', 'take', 'use', 'work', 'time', 'way', 'day', 'year', 'good', 'new',
+    'first', 'last', 'long', 'great', 'little', 'own', 'right', 'old', 'um', 'uh',
+    'yeah', 'okay', 'ok', 'actually', 'basically', 'really', 'probably', 'maybe'
+  ])
+} as const;
+
+export type TimeRange = keyof typeof TIME_RANGES;
