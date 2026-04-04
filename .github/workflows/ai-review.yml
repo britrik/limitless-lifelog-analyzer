@@ -1,0 +1,113 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD \
+            -- '*.ts' '*.tsx' '*.js' '*.css' '*.json' '*.yml' '*.yaml' '*.md' \
+            ':!package-lock.json' ':!dist/**' ':!*.min.js' \
+            | head -c 40000 > pr.diff
+
+      - name: Post AI review
+        env:
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          python3 << 'PYEOF'
+import os, json, urllib.request, urllib.error, subprocess, sys
+
+diff = open('pr.diff').read().strip()
+if not diff:
+    print("No reviewable diff - skipping.")
+    sys.exit(0)
+
+if len(diff) > 36000:
+    diff = diff[:36000] + "\n\n[diff truncated]"
+
+pr_title = os.environ['PR_TITLE']
+api_key = os.environ.get('GLM_API_KEY', '').strip()
+
+if not api_key:
+    print("GLM_API_KEY secret not set - skipping AI review.")
+    sys.exit(0)
+
+prompt = (
+    "You are reviewing a PR. Focus on:\n"
+    "1. PRIVACY - Does any code send user content to an external URL?\n"
+    "2. SECURITY - Unsanitized HTML? XSS risk? Input validation?\n"
+    "3. CORRECTNESS - Logic bugs, TypeScript errors, unhandled edge cases?\n"
+    "4. TESTS - New logic without tests?\n"
+    "5. NOTES - Anything else worth mentioning\n\n"
+    "Ignore: whitespace, style, lock files, generated files.\n\n"
+    f"PR: {pr_title}\n\n"
+    "```diff\n"
+    f"{diff}\n"
+    "```\n\n"
+    "Reply in exactly this format:\n"
+    "## AI Review\n"
+    "### Summary\n"
+    "[1-2 sentences]\n"
+    "### Findings\n"
+    "[Bullet list. Omit section if nothing to flag.]\n"
+    "### Verdict\n"
+    "[Exactly one of: Looks good | Minor issues, author's call | Needs changes]"
+)
+
+payload = json.dumps({
+    "model": "glm-5-turbo",
+    "messages": [{"role": "user", "content": prompt}],
+    "max_tokens": 4096,
+    "temperature": 0.2,
+}).encode()
+
+req = urllib.request.Request(
+    "https://api.z.ai/api/coding/paas/v4/chat/completions",
+    data=payload,
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    },
+)
+
+try:
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read())
+except urllib.error.HTTPError as e:
+    body = e.read().decode('utf-8', errors='replace')
+    print(f"GLM API HTTP {e.code} error: {body}")
+    sys.exit(0)
+except Exception as e:
+    print(f"GLM API error: {e}")
+    sys.exit(0)
+
+msg = data["choices"][0]["message"]
+review = (msg.get("content") or msg.get("reasoning_content") or "").strip()
+if not review:
+    print("GLM returned empty content - skipping comment.")
+    print(f"Full response: {json.dumps(data)}")
+    sys.exit(0)
+subprocess.run(
+    ["gh", "pr", "comment", os.environ["PR_NUMBER"], "--body", review],
+    check=True,
+)
+PYEOF
