@@ -4,7 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main]
-    paths-ignore: ['**/*.md', 'docs/**']
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
 
 concurrency:
   group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,8 +25,10 @@ jobs:
         with:
           fetch-depth: 0
       - name: Build diff
+        shell: bash
         run: |
-          git diff origin/${{ github.base_ref }}...HEAD -- '*.ts' '*.tsx' '*.js' '*.css' '*.json' '*.yml' '*.yaml' ':!package-lock.json' ':!dist/**' ':!*.min.js' | head -c 40000 > pr.diff
+          set -o pipefail
+          git diff "origin/${{ github.base_ref }}...HEAD" -- '*.ts' '*.tsx' '*.js' '*.css' '*.json' '*.yml' '*.yaml' ':!package-lock.json' ':!dist/**' ':!*.min.js' | head -c 40000 > pr.diff || test "${PIPESTATUS[0]}" = 0
       - name: Post AI review
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
@@ -32,13 +36,34 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          python3 << 'PYEOF'
-          import os, json, urllib.request, subprocess, sys
-          diff = open('pr.diff').read().strip()
-          if not diff or not os.environ.get('GLM_API_KEY','').strip(): sys.exit(0)
-          payload = json.dumps({'model':'glm-5-turbo','messages':[{'role':'user','content':f'Review this PR for privacy, security, correctness, and tests. PR: {os.environ["PR_TITLE"]}\n\n```diff\n{diff}\n```'}],'max_tokens':4096,'temperature':0.2}).encode()
-          req = urllib.request.Request('https://api.z.ai/api/coding/paas/v4/chat/completions', data=payload, headers={'Authorization':f'Bearer {os.environ["GLM_API_KEY"]}','Content-Type':'application/json'})
-          with urllib.request.urlopen(req, timeout=60) as r: data=json.loads(r.read())
-          review=(data['choices'][0]['message'].get('content') or '').strip()
-          if review: subprocess.run(['gh','pr','comment',os.environ['PR_NUMBER'],'--body',review],check=True)
+          python3 - <<'PYEOF'
+          import json
+          import os
+          import subprocess
+          import sys
+          import urllib.error
+          import urllib.request
+
+          diff = open('pr.diff', encoding='utf-8').read().strip()
+          api_key = os.environ.get('GLM_API_KEY', '').strip()
+          if not diff or not api_key:
+              sys.exit(0)
+          prompt = (
+              'Review this PR for privacy, security, correctness, tests, and notable issues. '
+              'Ignore whitespace, style, lock files, and generated files.\n\n'
+              f"PR: {os.environ['PR_TITLE']}\n\n```diff\n{diff[:36000]}\n```\n\n"
+              'Reply with ## AI Review, ### Summary, ### Findings, and ### Verdict. '
+              "Verdict must be Looks good, Minor issues, author's call, or Needs changes."
+          )
+          payload = json.dumps({'model': 'glm-5-turbo', 'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 4096, 'temperature': 0.2}).encode()
+          request = urllib.request.Request('https://api.z.ai/api/coding/paas/v4/chat/completions', data=payload, headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'})
+          try:
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  data = json.loads(response.read())
+          except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as error:
+              print(f'GLM API error: {error}')
+              sys.exit(0)
+          review = (data.get('choices', [{}])[0].get('message', {}).get('content') or '').strip()
+          if review:
+              subprocess.run(['gh', 'pr', 'comment', os.environ['PR_NUMBER'], '--body', review], check=True)
           PYEOF
