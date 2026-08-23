@@ -16,6 +16,8 @@ jobs:
     if: github.event.pull_request != null && github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Build diff
         run: git diff "origin/${{ github.base_ref }}...HEAD" -- '*.ts' '*.tsx' '*.js' '*.css' '*.json' '*.yml' '*.yaml' ':!package-lock.json' ':!dist/**' ':!*.min.js' > pr.diff
       - name: Post AI review
