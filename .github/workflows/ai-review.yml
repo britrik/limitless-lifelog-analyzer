@@ -28,14 +28,24 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, subprocess, sys, urllib.request
+
           diff = open('pr.diff', encoding='utf-8').read().strip()
-          if not diff: sys.exit(0)
+          if not diff:
+              sys.exit(0)
+
           key = os.environ.get('GLM_API_KEY', '').strip()
-          if not key: raise RuntimeError('GLM_API_KEY is not configured')
-          payload = json.dumps({'model':'glm-5-turbo','messages':[{'role':'user','content':f"Review this PR for privacy, security, correctness, and tests.\nPR: {os.environ['PR_TITLE']}\n```diff\n{diff[:36000]}\n```"}],'max_tokens':4096,'temperature':0.2}).encode()
-          req = urllib.request.Request('https://api.z.ai/api/coding/paas/v4/chat/completions', data=payload, headers={'Authorization':f'Bearer {key}','Content-Type':'application/json'})
-          with urllib.request.urlopen(req, timeout=60) as r: data=json.loads(r.read())
-          review = (data.get('choices',[{}])[0].get('message',{}).get('content') or '').strip()
-          if not review: raise RuntimeError('GLM returned empty review')
-          subprocess.run(['gh','pr','comment',os.environ['PR_NUMBER'],'--body',review], check=True)
+          if not key:
+              raise RuntimeError('GLM_API_KEY is not configured')
+
+          prompt = f"Review this PR for privacy, security, correctness, and tests.\nPR: {os.environ['PR_TITLE']}\n```diff\n{diff[:36000]}\n```"
+          payload = json.dumps({'model': 'glm-5-turbo', 'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 4096, 'temperature': 0.2}).encode()
+          req = urllib.request.Request('https://api.z.ai/api/coding/paas/v4/chat/completions', data=payload, headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
+          with urllib.request.urlopen(req, timeout=60) as response:
+              data = json.loads(response.read())
+
+          review = (data.get('choices', [{}])[0].get('message', {}).get('content') or '').strip()
+          if not review:
+              raise RuntimeError('GLM returned empty review')
+
+          subprocess.run(['gh', 'pr', 'comment', os.environ['PR_NUMBER'], '--body', review], check=True)
           PY
