@@ -78,7 +78,12 @@ jobs:
 
       - name: Run E2E tests
         if: env.PW_SKIP_E2E != '1'
-        run: npx playwright test --passWithNoTests
+        run: |
+          if find . -path ./node_modules -prune -o \( -name '*.spec.ts' -o -name '*.test.ts' \) -print -quit | grep -q .; then
+            npx playwright test
+          else
+            echo 'No e2e spec files found - skipping Playwright run'
+          fi
 
       - name: Upload Playwright report
         if: always() && env.PW_SKIP_E2E != '1'
