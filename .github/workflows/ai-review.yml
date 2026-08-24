@@ -4,6 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**']
+
+concurrency:
+  group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   pull-requests: write
@@ -12,102 +17,72 @@ permissions:
 jobs:
   review:
     runs-on: ubuntu-latest
+    # Never block PR CI on review problems
+    continue-on-error: true
     if: github.event.pull_request != null && github.event.pull_request.head.repo.full_name == github.repository
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Build diff
+        continue-on-error: true
         run: |
-          git diff origin/${{ github.base_ref }}...HEAD \
-            -- '*.ts' '*.tsx' '*.js' '*.css' '*.json' '*.yml' '*.yaml' '*.md' \
-            ':!package-lock.json' ':!dist/**' ':!*.min.js' \
-            | head -c 40000 > pr.diff
-
+          set -uo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          git fetch origin "$BASE_REF" --quiet || echo "WARN: could not fetch origin/$BASE_REF"
+          if git rev-parse --verify -q "origin/$BASE_REF" >/dev/null; then
+            git diff "origin/$BASE_REF...HEAD" -- '*.ts' '*.tsx' '*.js' '*.css' '*.json' '*.yml' '*.yaml' ':!package-lock.json' ':!dist/**' ':!*.min.js' > pr.diff
+          else
+            echo "WARN: origin/$BASE_REF missing; falling back to HEAD~1"
+            git diff "HEAD~1...HEAD" -- '*.ts' '*.tsx' '*.js' '*.css' '*.json' '*.yml' '*.yaml' ':!package-lock.json' ':!dist/**' ':!*.min.js' > pr.diff
+          fi
+          echo "diff bytes: $(wc -c < pr.diff)"
       - name: Post AI review
+        continue-on-error: true
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          python3 << 'PYEOF'
-          import os, json, urllib.request, urllib.error, subprocess, sys
+          python3 - <<'PY'
+          import json, os, subprocess, sys, time, urllib.error, urllib.request
+          try:
+              diff = open('pr.diff', encoding='utf-8').read().strip()
+          except OSError:
+              print('No pr.diff produced; skipping AI review.'); sys.exit(0)
+          if not diff: print('No reviewable diff; skipping AI review.'); sys.exit(0)
+          key = os.environ.get('GLM_API_KEY', '').strip()
+          if not key: print('GLM_API_KEY not configured; skipping AI review.'); sys.exit(0)
+          prompt = f"Review this PR for privacy, security, correctness, and tests.\nPR: {os.environ['PR_TITLE']}\n```diff\n{diff[:36000]}\n```"
+          payload = json.dumps({'model':'glm-5-turbo','messages':[{'role':'user','content':prompt}],'max_tokens':4096,'temperature':0.2}).encode()
 
-          diff = open('pr.diff').read().strip()
-          if not diff:
-          print("No reviewable diff - skipping.")
-          sys.exit(0)
-
-          if len(diff) > 36000:
-          diff = diff[:36000] + "\n\n[diff truncated]"
-
-          pr_title = os.environ['PR_TITLE']
-          api_key = os.environ.get('GLM_API_KEY', '').strip()
-
-          if not api_key:
-          print("GLM_API_KEY secret not set - skipping AI review.")
-          sys.exit(0)
-
-          prompt = (
-          "You are reviewing a PR. Focus on:\n"
-          "1. PRIVACY - Does any code send user content to an external URL?\n"
-          "2. SECURITY - Unsanitized HTML? XSS risk? Input validation?\n"
-          "3. CORRECTNESS - Logic bugs, TypeScript errors, unhandled edge cases?\n"
-          "4. TESTS - New logic without tests?\n"
-          "5. NOTES - Anything else worth mentioning\n\n"
-          "Ignore: whitespace, style, lock files, generated files.\n\n"
-          f"PR: {pr_title}\n\n"
-          "```diff\n"
-          f"{diff}\n"
-          "```\n\n"
-          "Reply in exactly this format:\n"
-          "## AI Review\n"
-          "### Summary\n"
-          "[1-2 sentences]\n"
-          "### Findings\n"
-          "[Bullet list. Omit section if nothing to flag.]\n"
-          "### Verdict\n"
-          "[Exactly one of: Looks good | Minor issues, author's call | Needs changes]"
-          )
-
-          payload = json.dumps({
-          "model": "glm-5-turbo",
-          "messages": [{"role": "user", "content": prompt}],
-          "max_tokens": 4096,
-          "temperature": 0.2,
-          }).encode()
-
-          req = urllib.request.Request(
-          "https://api.z.ai/api/coding/paas/v4/chat/completions",
-          data=payload,
-          headers={
-          "Authorization": f"Bearer {api_key}",
-          "Content-Type": "application/json",
-          },
-          )
+          data = None
+          # NOTE: catch broad Exception — Python 3.12 raises builtin TimeoutError (OSError
+          # subclass) on socket read timeouts, which `except URLError` does NOT catch.
+          for attempt in range(3):
+              req = urllib.request.Request(
+                  'https://api.z.ai/api/coding/paas/v4/chat/completions',
+                  data=payload,
+                  headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
+              try:
+                  with urllib.request.urlopen(req, timeout=180) as response:
+                      data = json.loads(response.read())
+                  break
+              except Exception as exc:  # noqa: BLE001 — resilience is the point
+                  print(f'Warning: GLM attempt {attempt + 1}/3 failed: {type(exc).__name__}: {exc}')
+                  time.sleep(5 * (attempt + 1))
+          if data is None: print('GLM API unavailable after retries; skipping AI review.'); sys.exit(0)
 
           try:
-          with urllib.request.urlopen(req, timeout=60) as resp:
-          data = json.loads(resp.read())
-          except urllib.error.HTTPError as e:
-          body = e.read().decode('utf-8', errors='replace')
-          print(f"GLM API HTTP {e.code} error: {body}")
-          sys.exit(0)
-          except Exception as e:
-          print(f"GLM API error: {e}")
-          sys.exit(0)
+              choices = data.get('choices') or []
+              review = ((choices[0].get('message') or {}).get('content') or '').strip()
+          except (AttributeError, IndexError, TypeError): review = ''
+          if not review: print('GLM returned no review content; skipping.'); sys.exit(0)
 
-          msg = data["choices"][0]["message"]
-          review = (msg.get("content") or msg.get("reasoning_content") or "").strip()
-          if not review:
-          print("GLM returned empty content - skipping comment.")
-          print(f"Full response: {json.dumps(data)}")
-          sys.exit(0)
-          subprocess.run(
-          ["gh", "pr", "comment", os.environ["PR_NUMBER"], "--body", review],
-          check=True,
-          )
-PYEOF
+          try:
+              subprocess.run(['gh','pr','comment',os.environ['PR_NUMBER'],'--body',review], check=True, timeout=60)
+          except Exception as exc:
+              print(f'Warning: failed to post PR comment: {exc}')
+              sys.exit(0)  # comment failure must never fail CI
+          PY
