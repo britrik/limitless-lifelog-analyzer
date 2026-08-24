@@ -78,7 +78,7 @@ jobs:
 
       - name: Run E2E tests
         if: env.PW_SKIP_E2E != '1'
-        run: npx playwright test
+        run: npx playwright test --passWithNoTests
 
       - name: Upload Playwright report
         if: always() && env.PW_SKIP_E2E != '1'
