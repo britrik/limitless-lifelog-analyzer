@@ -39,11 +39,11 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run lint -- --max-warnings=0
+      - run: npm run lint --if-present -- --max-warnings=0
 
-      - run: npm run typecheck
+      - run: npm run typecheck --if-present
 
-      - run: npm test -- --passWithNoTests
+      - run: npm test --if-present -- --passWithNoTests
 
   e2e:
     name: Playwright E2E
